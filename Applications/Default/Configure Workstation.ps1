@@ -321,34 +321,40 @@ $sharePath = "\\192.168.15.9\share"
 
 Write-Host "############################# DEVICE CONFIGURATION #############################" -ForegroundColor Cyan
 Write-Host ""
-$runProcess = Read-HostYesNo -Prompt "This process will complete basic configuration tasks. Continue?"
-
-if ($runProcess.ToLower() -eq "no") {
-    return
-}
 
 #Prompt user for device rename
-Write-Host ""
-$currentName = (gwmi win32_computersystem).Name
-$renameDevice = Read-HostYesNo -Prompt "Current device name: $($currentName). Rename this device?"
-if ($renameDevice.ToLower() -eq "y") {
-    Write-Host ""
-    Write-Host "New Device Name: " -ForegroundColor Yellow -NoNewline
-    $newDeviceName = Read-Host
+#Write-Host ""
+#$currentName = (gwmi win32_computersystem).Name
+#$renameDevice = Read-HostYesNo -Prompt "Current device name: $($currentName). Rename this device?"
+#if ($renameDevice.ToLower() -eq "y") {
+#    Write-Host ""
+#    Write-Host "New Device Name: " -ForegroundColor Yellow -NoNewline
+#    $newDeviceName = Read-Host
+#}
+
+# Get current device name
+$currentName = (Get-WmiObject -Class Win32_ComputerSystem).Name
+Write-Host "Current device name: $currentName"
+$renameDevice = "y"
+
+# Check if file with new name exists
+$newNameFile = "newname"
+if (Test-Path -Path $newNameFile) {
+    # Read new name from file
+    $newDeviceName = Get-Content -Path $newNameFile
+    
+    # Rename device
+    Write-Host "Renaming this device to: $newDeviceName" -ForegroundColor Yellow
+    Rename-Computer -NewName $newDeviceName -Force -Restart
+} else {
+    Write-Host "File $newNameFile does not exist. Please create it with the new name."
 }
+
+
 
 #Prompt user for removing pre-installed office
 Write-Host ""
-$uninstallOffice = Read-HostYesNo -Prompt "Remove preinstalled Microsoft Office?"
-
-#Prompt user for Chrome installation
-$installChrome = "n"
-if (Test-Connection $shareHost -Count 1 -Quiet) {
-    Write-Host ""
-    $installChrome = Read-HostYesNo -Prompt "Install Chrome?"
-} else {
-    Write-Host "Share not available. Skipping Chrome installation."
-}
+$uninstallOffice = "y"
 
 Write-Host ""
 Write-Host "Starting configuration..."
@@ -424,6 +430,8 @@ Write-Host "Removing Twitter..." -NoNewline
 Remove-BuiltInApp -Filter twitter
 Write-Host "Removing Xbox..." -NoNewline
 Remove-BuiltInApp -Filter xboxapp
+Write-Host "Removing More Xbox..." -NoNewline
+Remove-BuiltInApp -Filter xbox
 Write-Host "Removing Xbox Game Bar..." -NoNewline
 Remove-BuiltInApp -Filter xboxgamingoverlay
 Write-Host "Removing Xbox Identity Provider..." -NoNewline
@@ -432,6 +440,18 @@ Write-Host "Removing Xbox One SmartGlass..." -NoNewline
 Remove-BuiltInApp -Filter xboxonesmartglass
 Write-Host "Removing Xbox Game Speech Window..." -NoNewline
 Remove-BuiltInApp -Filter xboxspeechtotextoverlay
+Write-Host "Removing Solitare..." -NoNewline
+Remove-BuiltInApp -Filter SkypeApp
+Write-Host "Removing Skype" -NoNewline
+Remove-BuiltInApp -Filter MicrosoftSolitaireCollection
+Write-Host "Removing Zune Music..." -NoNewline
+Remove-BuiltInApp -Filter ZuneMusic
+Write-Host "Removing Zune Video..." -NoNewline
+Remove-BuiltInApp -Filter ZuneVideo
+Write-Host "Removing OneNote..." -NoNewline
+Remove-BuiltInApp -Filter OneNote
+
+
 
 #Remove pre-installed office
 if ($uninstallOffice.ToLower() -eq "y") {
@@ -439,18 +459,6 @@ if ($uninstallOffice.ToLower() -eq "y") {
     Remove-BuiltInApp -Filter microsoftofficehub
     Write-Host "Removing Microsoft Office (Store)..." -NoNewline
     Remove-BuiltInApp -Filter Microsoft.Office.Desktop
-}
-
-#Install Chrome
-if ($installChrome.ToLower() -eq "y") {
-    Copy-Item -Path "$sharePath\Software\Google\Chrome\googlechromestandaloneenterprise64.msi" -Destination "C:\Temp\googlechromestandaloneenterprise64.msi" -Force
-    Write-Host "Installing Chrome..." -NoNewline
-    $installResult = Start-Process "msiexec.exe" -ArgumentList "/i `"C:\Temp\googlechromestandaloneenterprise64.msi`" /qn" -NoNewWindow -Wait -PassThru
-    if ($installResult.ExitCode.ToString() -eq "0") {
-        Write-Host "OK" -ForegroundColor Green
-    } else {
-        Write-Host "Failed" -ForegroundColor Red
-    }
 }
 
 #Rename device
