@@ -338,8 +338,7 @@ Write-Host "Current device name: $currentName"
 $renameDevice = "y"
 
 # Check if file with new name exists
-$newNamePath = $PSScriptRoot
-$newNameFile = Join-Path -Path $newNamePath -ChildPath "newname"
+$newNameFile = Join-Path -Path $PSScriptRoot -ChildPath "newname"
 if (Test-Path -Path $newNameFile) {
     # Read new name from file
     $newDeviceName = Get-Content -Path $newNameFile
