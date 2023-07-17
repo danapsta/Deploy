@@ -345,7 +345,7 @@ if (Test-Path -Path $newNameFile) {
     
     # Rename device
     Write-Host "Renaming this device to: $newDeviceName" -ForegroundColor Yellow
-    Rename-Computer -NewName $newDeviceName -Force -Restart
+    Rename-Computer -NewName $newDeviceName
 } else {
     Write-Host "File $newNameFile does not exist. Please create it with the new name."
 }
@@ -467,7 +467,7 @@ if ($renameDevice.ToLower() -eq "y") {
     $renameResult = Rename-Computer -NewName $newDeviceName -Force -PassThru
     if ($renameResult.HasSucceeded.ToLower() -eq "true") {
         Write-Host "OK" -ForegroundColor Green
-        $rebootNow = Read-HostYesNo -Prompt "Device needs to reboot to finalize rename. Continue?"
+        $rebootNow = "y"
         if ($rebootNow.ToLower() = "y") {
             Write-Host "Restarting device"
             Restart-Computer -Force
