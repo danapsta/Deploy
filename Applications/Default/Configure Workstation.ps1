@@ -338,7 +338,8 @@ Write-Host "Current device name: $currentName"
 $renameDevice = "y"
 
 # Check if file with new name exists
-$newNameFile = "newname"
+$newNamePath = $PSScriptRoot
+$newNameFile = Join-Path -Path $newNamePath -ChildPath "newname"
 if (Test-Path -Path $newNameFile) {
     # Read new name from file
     $newDeviceName = Get-Content -Path $newNameFile
@@ -442,7 +443,7 @@ Write-Host "Removing Xbox Game Speech Window..." -NoNewline
 Remove-BuiltInApp -Filter xboxspeechtotextoverlay
 Write-Host "Removing Solitare..." -NoNewline
 Remove-BuiltInApp -Filter SkypeApp
-Write-Host "Removing Skype" -NoNewline
+Write-Host "Removing Skype..." -NoNewline
 Remove-BuiltInApp -Filter MicrosoftSolitaireCollection
 Write-Host "Removing Zune Music..." -NoNewline
 Remove-BuiltInApp -Filter ZuneMusic
