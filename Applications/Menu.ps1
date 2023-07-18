@@ -47,10 +47,6 @@ $checkBox2 = New-Object System.Windows.Forms.CheckBox
 $checkBox1 = New-Object System.Windows.Forms.CheckBox
 $InitialFormWindowState = New-Object System.Windows.Forms.FormWindowState
 
-$b1= $false
-$b2= $false
-$b3= $false
-
 #----------------------------------------------
 #Generated Event Script Blocks
 #----------------------------------------------
@@ -59,12 +55,19 @@ $handler_button1_Click=
 {
     $listBox1.Items.Clear();    
 
-    if ($checkBox1.Checked)     {  $listBox1.Items.Add( "Will Run Configuration Script"  )
-    "set var1=yes" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
-    $newname = Read-Host "Please Enter New Computer Name"
-    $newname | Out-File -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\Default\newname"
-     }
-
+    if ($checkBox1.Checked) {  
+        $listBox1.Items.Add( "Will Run Configuration Script"  )
+        "set var1=yes" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
+        
+        # Load necessary assembly
+        Add-Type -AssemblyName Microsoft.VisualBasic
+    
+        # Display an InputBox
+        $newname = [Microsoft.VisualBasic.Interaction]::InputBox("Please Enter New Computer Name", "Input Required", "")
+    
+        $newname | Out-File -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\Default\newname"
+    }    
+    
     else   {  $listBox1.Items.Add( "No Configuration Script"  )
     "set var1=no" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
      }
@@ -176,14 +179,21 @@ $handler_button1_Click=
     else   {  $listBox1.Items.Add( "No nwadmin password change"  )
     "set var5.1=no" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
      } 
-
-    if ($checkBox15.Checked)    {  $listBox1.Items.Add( "Adding to Domain"  ) 
-    "set var5.2=yes" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
-    $domainadd = Read-Host "Please Enter Domain"
-    "set var5.21=$domainadd" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
-     }
-
-    else   {  $listBox1.Items.Add( "No nwadmin password change"  )
+     
+    if ($checkBox15.Checked) {  
+        $listBox1.Items.Add( "Adding to Domain" ) 
+        "set var5.2=yes" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
+    
+        # Load necessary assembly
+        Add-Type -AssemblyName Microsoft.VisualBasic
+    
+        # Display an InputBox
+        $domainadd = [Microsoft.VisualBasic.Interaction]::InputBox("Please Enter Domain", "Input Required", "")
+    
+        "set var5.21=$domainadd" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
+    }
+    
+    else   {  $listBox1.Items.Add( "No Domain"  )
     "set var5.2=no" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
      } 
 
