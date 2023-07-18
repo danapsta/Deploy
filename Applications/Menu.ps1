@@ -1,49 +1,66 @@
-# Function to generate the form
-function GenerateForm {
+$checkBoxList = @{
+    checkBox1 = @{
+        Message = 'Configuration Script'
+        Var = 'var1'
+        SpecialAction = {
+            $newname = Read-Host "Please Enter New Computer Name"
+            $newname | Out-File -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\Default\newname"
+        }
+    }
+    checkBox2 = @{
+        Message = 'NTP Configuration'
+        Var = 'var2'
+    }
+    #... continue for all checkboxes, same as previous examples
+}
 
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
+$form = New-Object System.Windows.Forms.Form
+$form.Text = 'Script Execution'
+$form.Size = New-Object System.Drawing.Size(300,300)
+$form.StartPosition = 'CenterScreen'
 
-    # Form creation
-    $form1 = New-Object System.Windows.Forms.Form
-    $form1.Text = 'Automation Script'
-    $form1.Size = New-Object System.Drawing.Size(250,800)
-    $form1.StartPosition = 'CenterScreen'
+$button1 = New-Object System.Windows.Forms.Button
+$button1.Location = New-Object System.Drawing.Point(75,120)
+$button1.Size = New-Object System.Drawing.Size(75,23)
+$button1.Text = 'Run Script'
+$button1.DialogResult = [System.Windows.Forms.DialogResult]::OK
+$form.AcceptButton = $button1
+$form.Controls.Add($button1)
+
+$listBox1 = New-Object System.Windows.Forms.ListBox
+$listBox1.Location = New-Object System.Drawing.Point(10,20)
+$listBox1.Size = New-Object System.Drawing.Size(260,90)
+$listBox1.Height = 200
+$form.Controls.Add($listBox1)
+
+$button1.Add_Click({
+    $listBox1.Items.Clear() 
+    $batFile = "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
     
-    # FlowLayoutPanel creation
-    $flowLayoutPanel = New-Object System.Windows.Forms.FlowLayoutPanel
-    $flowLayoutPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
+    foreach($key in $checkBoxList.Keys) {
+        $checkBox = $form.Controls[$key]
+        $settings = $checkBoxList[$key]
 
-    # CheckBoxes
-    $checkBoxTexts = @('Basic Computer Configuration', 'NTP Configuration', 'Enable RDP', 'Install Adobe Reader',
-                       'Install NetExtender', 'Install Agent', 'Install Chrome', 'Windows Patching', 'Install Teams',
-                       'Install Firefox', 'Install O365', 'Change Default Apps', 'Change Visual Settings', 
-                       'nwadmin password', 'Add to Domain', 'Install BGInfo', 'Office 2019', 'Correctek Spark',
-                       'Office at Hand')
+        $message = if ($checkBox.Checked) {
+            "Will Run $($settings.Message)"
+        } else {
+            "No $($settings.Message)"
+        }
 
-    for ($i = 0; $i -lt $checkBoxTexts.Length; $i++) {
-        $checkBox = New-Object System.Windows.Forms.CheckBox
-        $checkBox.Size = New-Object System.Drawing.Size(200, 20)
-        $checkBox.Text = $checkBoxTexts[$i]
-        $checkBox.Name = "checkBox$($i + 1)"
-        $checkBox.UseVisualStyleBackColor = $True
-        $flowLayoutPanel.Controls.Add($checkBox)
+        $listBox1.Items.Add($message)
+
+        "set $($settings.Var)=$($checkBox.Checked)" | Out-File -append -Encoding ascii -FilePath $batFile
+
+        if ($checkBox.Checked -and $settings.SpecialAction) {
+            & $settings.SpecialAction
+        }
     }
 
-    # Button creation
-    $runButton = New-Object System.Windows.Forms.Button
-    $runButton.Location = New-Object System.Drawing.Point(75, 600)
-    $runButton.Size = New-Object System.Drawing.Size(100, 23)
-    $runButton.Text = 'Run Script'
-    $runButton.add_Click({RunScript})
-    $flowLayoutPanel.Controls.Add($runButton)
+    if (!(($form.Controls|? Checked).Count)) {
+        $listBox1.Items.Add("No CheckBox selected....")
+    }
 
-    # Adding the FlowLayoutPanel to the form
-    $form1.Controls.Add($flowLayoutPanel)
+    Start-Process -FilePath "C:\Users\$env:UserName\Desktop\Applications\Stepstart.bat"
+})
 
-    # Show the form
-    $form1.ShowDialog()| Out-Null
-} 
-
-# Call the function
-GenerateForm
+$form.ShowDialog()
