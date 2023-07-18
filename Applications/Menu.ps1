@@ -61,6 +61,8 @@ $handler_button1_Click=
 
     if ($checkBox1.Checked)     {  $listBox1.Items.Add( "Will Run Configuration Script"  )
     "set var1=yes" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
+    $newname = Read-Host "Please Enter New Computer Name"
+    $newname | Out-File -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\Default\newname"
      }
 
     else   {  $listBox1.Items.Add( "No Configuration Script"  )

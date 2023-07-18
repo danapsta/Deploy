@@ -37,6 +37,7 @@ echo .
 
 %cpath%\Cmdutils\Recycle.exe /f "C:\Users\%username%\Desktop\Deploy.bat"
 %cpath%\Cmdutils\Recycle.exe /f "C:\Users\%username%\Desktop\Readme.txt"
+%cpath%\Cmdutils\Recycle.exe /f /r "C:\Users\%username%\Desktop\Applications"
 
 TIMEOUT 15
 shutdown /r -t 0
