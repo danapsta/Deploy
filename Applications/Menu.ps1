@@ -11,7 +11,11 @@ $checkBoxList = @{
         Message = 'NTP Configuration'
         Var = 'var2'
     }
-    #... continue for all checkboxes, same as previous examples
+    checkBox3 = @{
+        Message = 'User Management'
+        Var = 'var3'
+    }
+    #... Add as many checkboxes as required
 }
 
 $form = New-Object System.Windows.Forms.Form
@@ -32,6 +36,18 @@ $listBox1.Location = New-Object System.Drawing.Point(10,20)
 $listBox1.Size = New-Object System.Drawing.Size(260,90)
 $listBox1.Height = 200
 $form.Controls.Add($listBox1)
+
+$checkBoxYPos = 150
+
+foreach ($checkBoxData in $checkBoxList.GetEnumerator()) {
+    $checkBox = New-Object System.Windows.Forms.CheckBox
+    $checkBox.Name = $checkBoxData.Name
+    $checkBox.Text = $checkBoxData.Value.Message
+    $checkBox.Location = New-Object System.Drawing.Point(10, $checkBoxYPos)
+    $form.Controls.Add($checkBox)
+
+    $checkBoxYPos += 30
+}
 
 $button1.Add_Click({
     $listBox1.Items.Clear() 
