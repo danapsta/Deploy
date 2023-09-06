@@ -19,12 +19,11 @@ if %var3.2%==yes Powershell.exe -Command "Start-Process -FilePath %cpath%\Firefo
 if %var3.2%==yes TIMEOUT 60
 
 REM Install O365
-if %var3.3%==yes echo .
-if %var3.3%==yes echo "Installing Office 365"
-if %var3.3%==yes Powershell.exe -Command "Start-Process -FilePath %cpath%\O365\*.exe -Verb RunAs"
-if %var3.3%==yes TIMEOUT 700
+REM if %var3.3%==yes echo .
+REM if %var3.3%==yes echo "Installing Office 365"
+REM if %var3.3%==yes Powershell.exe -Command "Start-Process -FilePath %cpath%\O365\*.exe -Verb RunAs"
+REM if %var3.3%==yes TIMEOUT 700
 
-@echo off
 REM Install O365
 
 if %var3.3%==yes (
