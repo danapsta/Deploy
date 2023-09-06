@@ -33,7 +33,7 @@ if %var3.3%==yes (
   # echo Download complete. Running Office Deployment Tool...
   # powershell.exe -Command "Start-Process -FilePath '%cpath%\O365\officedeploymenttool.exe' -ArgumentList '/extract:%cpath%\O365' -Wait"
   echo "Downloading and installing Office 365..."
-  powershell.exe -Command "Start-Process -Filepath 'C:\Users\netman\Desktop\O365\setup.exe' -argumentlist '/configure "C:\Users\netman\Desktop\O365\configuration-Office365-x64.xml"' -Wait"
+  powershell.exe -Command "Start-Process -Filepath '%cpath%\O365\setup.exe' -argumentlist '/configure "%cpath%\O365\configuration-Office365-x64.xml"' -Wait"
   TIMEOUT 10
 )
 

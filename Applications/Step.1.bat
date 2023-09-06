@@ -86,9 +86,9 @@ if %var5%==yes echo .
 
 if %var5%==yes (
   echo Downloading NetExtender installer...
-  powershell.exe -Command "& { $url = 'https://software.sonicwall.com/NetExtender/NetExtender-x64-10.2.331.MSI'; $webClient = New-Object System.Net.WebClient; $webClient.DownloadFile($url, '%cpath%\NetExtender\NetExtenderInstaller.msi') }"
+  powershell.exe -Command "& { $url = 'https://software.sonicwall.com/NetExtender/NetExtender-x64-10.2.331.MSI'; $webClient = New-Object System.Net.WebClient; $webClient.DownloadFile($url, '%cpath%\NetExtender\netextender.msi') }"
   echo Download complete. Running installer...
-  powershell.exe -Command "Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i "%cpath%\NetExtender\NetExtenderInstaller.msi" /Passive /qb /norestart' -Wait"
+  powershell.exe -Command "Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i "%cpath%\NetExtender\netextender.msi" /Passive /qb /norestart' -Wait"
   TIMEOUT 10
 )
 
