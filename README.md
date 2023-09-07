@@ -47,6 +47,7 @@ Basically, one file runs another, which runs another...which runs another... unt
 
 # Detailed Information
 
+## ***dl.bat***
 *dl.bat*: Downloads a .zip file containing the latest script information from https://github.com/danapsta/Deploy.  Then, it automatically extracts the contents to the Desktop in a format the script can work with (1x Folder: Applications and 2x Files: Deploy.bat and Readme.md (This file))
 
 ***Deploy.bat***:
