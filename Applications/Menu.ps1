@@ -170,10 +170,18 @@ function GenerateForm {
         "set var4.2=no" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
          } 
     
-        if ($checkBox14.Checked)    {  $listBox1.Items.Add( "Changing nwadmin Password"  ) 
-        "set var5.1=yes" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
-        $nwpass = Read-Host "Please Enter nwadmin password"
-        "set var5.11=$nwpass" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
+        if ($checkBox14.Checked)    {  
+            $listBox1.Items.Add( "Changing nwadmin Password"  ) 
+            "set var5.1=yes" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
+
+            # Load necessary assembly
+            Add-Type -AssemblyName Microsoft.VisualBasic
+
+            # Display an InputBox
+            $nwpass = [Microsoft.VisualBasic.Interaction]::InputBox("Please Enter nwadmin password", "Input Required", "")
+
+            # $nwpass = Read-Host "Please Enter nwadmin password"
+            "set var5.11=$nwpass" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
          }
     
         else   {  $listBox1.Items.Add( "No nwadmin password change"  )
