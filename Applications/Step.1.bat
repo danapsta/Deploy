@@ -93,11 +93,13 @@ REM  powershell.exe -Command "Start-Process -FilePath 'msiexec.exe' -ArgumentLis
 REM  TIMEOUT 10
 REM )
 
+set netexPath="C:\Users\%username%\Desktop\Applications\NetExtender\netextender.msi"
+
 if %var5%==yes (
   echo Downloading NetExtender installer...
   powershell.exe -Command "& { $url = 'https://software.sonicwall.com/NetExtender/NetExtender-x64-10.2.331.MSI'; $webClient = New-Object System.Net.WebClient; $webClient.DownloadFile($url, '%cpath%\NetExtender\netextender.msi') }"
   echo Download complete. Running installer...
-  msiexec.exe /i "%cpath%\NetExtender\netextender.msi" /Passive /qb /norestart
+  powershell.exe -Command "Start-Process -FilePath '%netexPath%' -Wait"
 )
 
 REM Complete
