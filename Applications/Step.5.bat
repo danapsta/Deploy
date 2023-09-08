@@ -23,7 +23,7 @@ REM Removed -restart -force from add-computer command. PC Will reboot at end of 
 if %var5.2%==yes echo .
 if %var5.2%==yes echo "Joining to domain.  Please connect NetExtender if applicable."
 if %var5.2%==yes Powershell.exe -Command "Add-computer -domainname %var5.21%"
-if %var5.2%==yes PAUSE
+if %var5.2%==yes TIMEOUT 2
 
 del "C:\Users\%username%\Desktop\Deploy.bat"
 del "C:\Users\%username%\Desktop\Readme.md"
@@ -41,10 +41,6 @@ echo "System will reboot in 15 seconds for final time"
 echo --------------------------------------------------------------------------------------------------
 echo .
 echo .
-
-%cpath%\Cmdutils\Recycle.exe /f "C:\Users\%username%\Desktop\Deploy.bat"
-%cpath%\Cmdutils\Recycle.exe /f "C:\Users\%username%\Desktop\Readme.txt"
-%cpath%\Cmdutils\Recycle.exe /f /r "C:\Users\%username%\Desktop\Applications"
 
 TIMEOUT 15
 shutdown /r -t 0
