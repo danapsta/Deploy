@@ -1,3 +1,5 @@
+@echo off
+
 set cpath=C:\Users\%username%\Desktop\Applications
 
 del %cpath%\variables.bat

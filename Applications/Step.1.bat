@@ -91,14 +91,13 @@ REM  powershell.exe -Command "& { $url = 'https://software.sonicwall.com/NetExte
 REM  echo Download complete. Running installer...
 REM  powershell.exe -Command "Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i "%cpath%\NetExtender\netextender.msi" /Passive /qb /norestart' -Wait"
 REM  TIMEOUT 10
-REM)
+REM )
 
 if %var5%==yes (
   echo Downloading NetExtender installer...
-  powershell.exe -Command "& { $url = 'https://software.sonicwall.com/NetExtender/NetExtender-x64-10.2.331.MSI'; $webClient = New-Object System.Net.WebClient; $webClient.DownloadFile($url, '%cpath%\NetExtender\netextender.msi') }"
+  powershell.exe -Command "& { $url = 'https://software.sonicwall.com/NetExtender/NetExtender-x64-10.2.331.MSI'; $webClient = New-Object System.Net.WebClient; $webClient.DownloadFile($url, '$env:msiPath') }"
   echo Download complete. Running installer...
-  powershell.exe -Command "Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i ""%cpath%\NetExtender\netextender.msi"" /Passive /qb /norestart' -Wait"
-  TIMEOUT 10
+  powershell.exe -Command "Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i', '$env:msiPath', '/Passive', '/qb', '/norestart' -Wait"
 )
 
 REM Complete
@@ -110,4 +109,5 @@ echo .
 TIMEOUT 15
 
 if %var1%==yes shutdown /r -t 0
+if %var5%==yes shutdown /r -t 0
 if %var1%==no Powershell.exe -Command "Start-Process C:\Users\%username%\Desktop\Applications\Step.2.bat -Verb RunAs
