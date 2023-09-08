@@ -19,9 +19,10 @@ if %var5.1%==yes net user nwadmin %var5.11%
 if %var5.1%==yes TIMEOUT 2
 
 powershell Remove-Item "C:\Users\%username%\Desktop\Applications" -recurse -force
-powershell Remove-Item "C:\Users\%username%\Desktop\Readme.md"
-powershell Remove-Item "C:\Users\%username%\Desktop\Deploy.bat"
-powershell Remove-Item "C:\Users\%username%\Desktop\.DS_Store"
+del "C:\Users\%username%\Desktop\Deploy.bat"
+del "C:\Users\%username%\Desktop\Readme.md"
+del "C:\Users\%username%\Desktop\.DS_Store"
+del "C:\Users\%username%\Desktop\Download.bat"
 
 REM Add PC to Domain
 if %var5.2%==yes echo .
