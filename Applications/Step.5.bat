@@ -18,21 +18,22 @@ if %var5.1%==yes echo "Setting nwadmin Password"
 if %var5.1%==yes net user nwadmin %var5.11%
 if %var5.1%==yes TIMEOUT 2
 
-powershell Remove-Item "C:\Users\%username%\Desktop\Applications" -recurse -force
+REM Add PC to Domain
+REM Removed -restart -force from add-computer command. PC Will reboot at end of script. 
+if %var5.2%==yes echo .
+if %var5.2%==yes echo "Joining to domain.  Please connect NetExtender if applicable."
+if %var5.2%==yes Powershell.exe -Command "Add-computer -domainname %var5.21%"
+if %var5.2%==yes PAUSE
+
 del "C:\Users\%username%\Desktop\Deploy.bat"
 del "C:\Users\%username%\Desktop\Readme.md"
 del "C:\Users\%username%\Desktop\.DS_Store"
 del "C:\Users\%username%\Desktop\Download.bat"
+powershell Remove-Item "C:\Users\%username%\Desktop\Applications" -recurse -force
 
-REM Add PC to Domain
-if %var5.2%==yes echo .
-if %var5.2%==yes echo "Joining to domain.  Please connect NetExtender if applicable."
-if %var5.2%==yes Powershell.exe -Command "Add-computer -domainname %var5.21% -restart -force"
-if %var5.2%==yes PAUSE
 
 echo .
 echo .
-echo "If PC did not reboot.  Domain join was unsuccessful or not selected.  Please manually join to domain and reboot."
 echo .
 echo --------------------------------------------------------------------------------------------------
 echo "This concludes the configuration script"

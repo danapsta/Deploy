@@ -6,12 +6,12 @@ call %cpath%\variables.bat
 if %var2.1%==no if %var2.2%==no if %var2.3%==no if %var2.4%==no Powershell.exe -Command "Start-Process C:\Users\%username%\Desktop\Applications\Step.3.bat -Verb RunAs
 if %var2.1%==no if %var2.2%==no if %var2.3%==no if %var2.4%==no EXIT
 
-
 REM Run Agent Installer
-if %var2.1%==yes echo .
-if %var2.1%==yes echo "Running Agent Installer"
-if %var2.1%==yes Powershell.exe -Command "Start-Process -FilePath %cpath%\Agent\*.exe /quiet -Verb RunAs"
-if %var2.1%==yes TIMEOUT 120
+if %var2.1%==yes (
+    echo .
+    echo "Running Agent Installer"
+    Powershell.exe -Command "Start-Process -FilePath %cpath%\Agent\*.exe /quiet -Verb RunAs -Wait"
+)
 
 REM Install Chrome
 if %var2.2%==yes echo .
