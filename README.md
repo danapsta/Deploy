@@ -6,11 +6,11 @@ Currently, our scripts are broken out and require user intervention to complete.
 # Pre-requisites
 
 1. Download the relevant Agent from NCentral and place in the **Applications\Agent** folder. 
-2. Have the client's nwadmin password ready (script will prompt for this before running)
+2. Have the client's local admin password ready (script will prompt for this before running)
 3. Have the client's NetExtender connection information ready (if needing to remotely connect). 
 4. Have the client's Domain Administration credentials ready (if joining to the domain during the baselining process)
 5. Know, in general, what applications and specific baseline considerations are needed for the specific client (NetExtender, Office 365, Etc...)
-6. Make sure you don't set a user password during OOB setup.  This won't "break" the script, but you will have to enter the user password each time the machine automatically reboots (5 times).  The script will automatically apply the nwadmin password when it is completely finished. 
+6. Make sure you don't set a user password during OOB setup.  This won't "break" the script, but you will have to enter the user password each time the machine automatically reboots (5 times).  The script will automatically apply the local admin password when it is completely finished. 
 
 # How to Use
 
@@ -18,10 +18,33 @@ Currently, our scripts are broken out and require user intervention to complete.
 2. Run **deploy.bat**
 3. Check the relevant task boxes to tell the script what to do. 
 4. Click **Start Script**
-5. Fill out any pop-ups requesting information (PC Name, nwadmin password, etc...)
+5. Fill out any pop-ups requesting information (PC Name, local admin password, etc...)
 6. Wait.  The script will do its thing and reboot up to 5 times before completing.  
 
-**Note:** You shouldn't, but you may get a prompt during deployment to accept or run a certain part of the script.  Make note of which part of the process this happens and let me know. 
+**Note:** You shouldn't, but you may get a prompt during deployment to accept or run a certain part of the script.  Make note of which part of the process this happens and let me know.
+
+# Typical Options
+
+For workstation deployments, the following options are typically selected for a baseline.  The rest of the options depend on the client's specific needs.  
+
+1. Basic Computer Configuration
+2. NTP Configuration
+3. Enable RDP
+4. Install Adobe Reader
+5. Install Agent (Unless already installed)
+6. Install Chrome
+7. Windows Patching
+
+For Server deployments, the following options are typically selected for baseline.
+
+1. Basic Computer Configuration
+2. NTP Configuration
+3. Enable RDP
+4. Install Agent (Unless already installed)
+5. Install Chrome
+6. Windows Patching
+7. Add to Domain
+8. Install BGInfo 
 
 # General Script Flow
 
@@ -110,7 +133,7 @@ Basically, one file runs another, which runs another...which runs another... unt
 ### ***Step4.bat***
 1. References **variables.bat** to determine which sections execute using if statements
 2. Deletes any previous script files in the startup folder. 
-4. Calls on **SetuserFTA** scripts to change program defaults for the nwadmin user (.pdf to Adobe Acrobat, http,https,html,and htm to Google Chrome. ) (Only works for the currently logged in user nwadmin which won't be used by the client.)
+4. Calls on **SetuserFTA** scripts to change program defaults for the local admin user (.pdf to Adobe Acrobat, http,https,html,and htm to Google Chrome. ) (Only works for the currently logged in user which won't be used by the client.)
 5. Adds registry keys to change Windows visual settings for more performance (Currently Broken)
 6. Copies **Admin5.bat** to startup folder
 7. Reboots the PC (Regardless if any section was executed)
@@ -121,7 +144,7 @@ Basically, one file runs another, which runs another...which runs another... unt
 ### ***Step5.bat***
 1. References ***variables.bat*** to determine which sections execute using if statements
 2. Deltes any previous script files in the startup folder
-3. Sets the password of the user "nwadmin" to the pre-determined value. 
+3. Sets the password of the local admin user to the pre-determined value. 
 4. Prompts for domain admin credentials to add PC to the pre-determined domain. 
 5. Will reboot PC for a final time if domain join is successful. 
 6. Deletes all script files from the Desktop. 
