@@ -20,7 +20,7 @@ echo Remove-Item "$desktop\$filename" >> "%psScript%"
 echo # Move contents of Deploy-main to desktop >> "%psScript%"
 echo Get-ChildItem -Path "$desktop\Deploy-main" ^| Move-Item -Destination $desktop >> "%psScript%"
 echo # remove the empty Deploy-main folder >> "%psScript%"
-echo Remove-Item "$desktop\Deploy-main" >> "%psScript%"
+echo Remove-Item "$desktop\Deploy-main" -recurse -force >> "%psScript%"
 echo Write-Output "Done." >> "%psScript%"
 
 :: run the PS script

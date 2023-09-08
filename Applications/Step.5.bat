@@ -18,6 +18,11 @@ if %var5.1%==yes echo "Setting nwadmin Password"
 if %var5.1%==yes net user nwadmin %var5.11%
 if %var5.1%==yes TIMEOUT 2
 
+powershell Remove-Item "C:\Users\%username%\Desktop\Applications" -recurse -force
+powershell Remove-Item "C:\Users\%username%\Desktop\Readme.md"
+powershell Remove-Item "C:\Users\%username%\Desktop\Deploy.bat"
+powershell Remove-Item "C:\Users\%username%\Desktop\.DS_Store"
+
 REM Add PC to Domain
 if %var5.2%==yes echo .
 if %var5.2%==yes echo "Joining to domain.  Please connect NetExtender if applicable."

@@ -47,12 +47,81 @@ Basically, one file runs another, which runs another...which runs another... unt
 
 # Detailed Information
 
-## ***dl.bat***
-*dl.bat*: Downloads a .zip file containing the latest script information from https://github.com/danapsta/Deploy.  Then, it automatically extracts the contents to the Desktop in a format the script can work with (1x Folder: Applications and 2x Files: Deploy.bat and Readme.md (This file))
+### ***dl.bat***
+1. Downloads a .zip file containing the latest script information from https://github.com/danapsta/Deploy.  
+2. Extracts the contents to the Desktop in a format the script can work with (1x Folder: Applications and 2x Files: Deploy.bat and Readme.md (This file))
 
-***Deploy.bat***:
-1.  
+### ***Deploy.bat***
+1.  Runs **Menu.bat** as Administrator. 
 
-*Menu.bat*:
-1. 
-e
+### ***Menu.bat***
+1. Deletes **variables.bat** if it already exists, and creates a new, blank, file. 
+2. Unblocks powershell scripts which will be run later so they are not prompted each time they run. 
+3. Runs **Menu.ps1** as Administrator
+
+### ***Menu.ps1***
+1. Launches the interface where task selection occurs.  
+2. When **Start Script** is pressed, it writes a line to **variables.bat** according to which tasks were selected. 
+3. Prompts for additional input for sections which require it. 
+4. Runs **Stepstart.bat**
+
+### ***Stepstart.bat****
+1. Runs **Step1.bat** as Administrator to kick off the process. 
+
+### ***Step1.bat***
+1. References **variables.bat** to determine which sections execute using if statements.  
+2. Disables IE Enhanced Security mode (Errors on workstations)
+3. Runs **Configure Workstation.ps1** which re-names the computer, disables built-in firewall, and removes built-in bloatware.
+4. Sets NTP server to **time.windows.com** and **time.google.com** and configures computer to sync. 
+5. Enables RDP for the workstation
+6. Installs Adobe Reader by downloading and executing the install file. 
+7. Copies **Admin2.bat** to the PC's startup folder (to continue script upon reboot)
+8. Installs NetExtender by downloading and executing the install file. 
+9. Reboots the PC if any of the above sections were executed (will skip if nothing from this file was selected during the menu process)
+
+### ***Admin2.bat***
+1. Runs **Step2.bat** as Administrator to continue the process after a reboot. 
+
+### ***Step2.bat***
+1. References **variables.bat** to determine which sections execute using if statements
+2. Looks in the **Applications\Agent** folder for an installer and executes silently i fpresent. 
+3. Installs Google Chrome by running the install launcher located in the **Applications\Chrome** folder. 
+4. Deletes any previous script files from the startup folder and copies **Admin3.bat** to startup folder. 
+5. Runs **Install Windows Patches.ps1** which looks for and downloads any available Windows Update.  This script will trigger a reboot automatically when it is complete. l
+6. Reboots the PC if any of the above sections were executed (will skip if nothing from this file was selected during the menu process)
+
+### ***Admin3.bat***
+1. Runs **Step3.bat** as Administrator to continue the process after a reboot. 
+
+### ***Step3.bat***
+1. References **variables.bat** to determine which sections execute using if statements
+2. Looks in the **Applications\Teams** directory for an installer and executes if present (*currently Broken*)
+3. Installs Firefox by looking in the **Aplications\Firefox** directory and executing the installer, if present. 
+4. Installs Office 365 by running the setup file located in **Applications\O365** and referencing the O365-specific configuration file (Also located in **Applications\O365**). 
+5. Installs BGInfo by calling the **BGInfo_Automated_Windows_Server_2023_R2.ps1** script. 
+6. Begins the Office 2019 setup process by running **OFFICE_SETUP.BAT** (*Currently Broken* and calls for user input, if selected)
+7. Installs various other deprecated programs, if selected.  These will be removed in future versions and replaced with newer software. 
+8. Deletes any previous script files from the startup folder and copies **Admin4.bat** to startup folder. 
+9. Reboots the PC (Regardless if any section was executed)
+
+### ***Admin4.bat***
+1. Runs **Step4.bat** as Administrator to continue th eprocess after a reboot
+
+### ***Step4.bat***
+1. References **variables.bat** to determine which sections execute using if statements
+2. Deletes any previous script files in the startup folder. 
+4. Calls on **SetuserFTA** scripts to change program defaults for the nwadmin user (.pdf to Adobe Acrobat, http,https,html,and htm to Google Chrome. ) (Only works for the currently logged in user nwadmin which won't be used by the client.)
+5. Adds registry keys to change Windows visual settings for more performance (Currently Broken)
+6. Copies **Admin5.bat** to startup folder
+7. Reboots the PC (Regardless if any section was executed)
+
+### ***Admin5.bat***
+1. Runs **Step5.bat** as Administrator to continue the process after a reboot
+
+### ***Step5.bat***
+1. References ***variables.bat*** to determine which sections execute using if statements
+2. Deltes any previous script files in the startup folder
+3. Sets the password of the user "nwadmin" to the pre-determined value. 
+4. Prompts for domain admin credentials to add PC to the pre-determined domain. 
+5. Will reboot PC for a final time if domain join is successful. 
+6. Deletes all script files from the Desktop. 
