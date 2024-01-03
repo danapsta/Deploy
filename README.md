@@ -1,3 +1,5 @@
+Script to Automatically Baseline a Windows PC and Install basic applications. 
+
 # deployment
 Automatic PC Deployment Script for use when baselining new client PC.  The goal of this script is to automate the entire baseline process.  
 
