@@ -96,7 +96,7 @@ Basically, one file runs another, which runs another...which runs another... unt
 ### ***Step1.bat***
 1. References **variables.bat** to determine which sections execute using if statements.  
 2. Disables IE Enhanced Security mode (Errors on workstations)
-3. Runs **Configure Workstation.ps1** which re-names the computer, disables built-in firewall, and removes built-in bloatware.
+3. Runs **Configure Workstation.ps1** which re-names the computer, enables the built-in firewall and Windows Defender, and removes built-in bloatware.
 4. Sets NTP server to **time.windows.com** and **time.google.com** and configures computer to sync. 
 5. Enables RDP for the workstation
 6. Installs Adobe Reader by downloading and executing the install file. 
@@ -125,9 +125,10 @@ Basically, one file runs another, which runs another...which runs another... unt
 4. Installs Office 365 by running the setup file located in **Applications\O365** and referencing the O365-specific configuration file (Also located in **Applications\O365**). 
 5. Installs BGInfo by calling the **BGInfo_Automated_Windows_Server_2023_R2.ps1** script. 
 6. Begins the Office 2019 setup process by running **OFFICE_SETUP.BAT** (*Currently Broken* and calls for user input, if selected)
-7. Installs various other deprecated programs, if selected.  These will be removed in future versions and replaced with newer software. 
-8. Deletes any previous script files from the startup folder and copies **Admin4.bat** to startup folder. 
-9. Reboots the PC (Regardless if any section was executed)
+7. Installs various other deprecated programs, if selected.  These will be removed in future versions and replaced with newer software.
+8. Removes pre-installed McAfee antivirus from Lenovo systems, if selected.
+9. Deletes any previous script files from the startup folder and copies **Admin4.bat** to startup folder.
+10. Reboots the PC (Regardless if any section was executed)
 
 ### ***Admin4.bat***
 1. Runs **Step4.bat** as Administrator to continue th eprocess after a reboot

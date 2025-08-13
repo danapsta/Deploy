@@ -6,7 +6,10 @@ function GenerateForm {
     $form1 = New-Object System.Windows.Forms.Form
     $button1 = New-Object System.Windows.Forms.Button
     $listBox1 = New-Object System.Windows.Forms.ListBox
-    
+
+    # Remove McAfee Antivirus (var3.11)
+    $checkBox23 = New-Object System.Windows.Forms.CheckBox
+
     # Teamviewer 9 (var3.10)
     $checkBox22 = New-Object System.Windows.Forms.CheckBox
     
@@ -263,6 +266,14 @@ function GenerateForm {
     
     
     
+        if ($checkBox23.Checked)    {  $listBox1.Items.Add( "Removing McAfee Antivirus"  )
+        "set var3.11=yes" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
+         }
+
+        else   {  $listBox1.Items.Add( "No McAfee Removal"  )
+        "set var3.11=no" | Out-File -append -Encoding ascii -FilePath "C:\Users\$env:UserName\Desktop\Applications\variables.bat"
+         }
+
         if ( !$checkBox1.Checked -and !$checkBox2.Checked -and !$checkBox3.Checked ) {   $listBox1.Items.Add("No CheckBox selected....")} 
     
     start-process -FilePath C:\Users\$env:UserName\Desktop\Applications\Stepstart.bat
@@ -296,7 +307,7 @@ function GenerateForm {
     
     $System_Drawing_Point = New-Object System.Drawing.Point
     $System_Drawing_Point.X = 27
-    $System_Drawing_Point.Y = 695
+    $System_Drawing_Point.Y = 726
     $button1.Location = $System_Drawing_Point
     $button1.DataBindings.DefaultDataSourceUpdateMode = 0
     $button1.add_Click($handler_button1_Click)
@@ -331,8 +342,24 @@ function GenerateForm {
     $checkBox22.Location = $System_Drawing_Point
     $checkBox22.DataBindings.DefaultDataSourceUpdateMode = 0
     $checkBox22.Name = "checkBox22"
-    
+
     $form1.Controls.Add($checkBox22)
+
+    $checkBox23.UseVisualStyleBackColor = $True
+    $System_Drawing_Size = New-Object System.Drawing.Size
+    $System_Drawing_Size.Width = 104
+    $System_Drawing_Size.Height = 34
+    $checkBox23.Size = $System_Drawing_Size
+    $checkBox23.TabIndex = 2
+    $checkBox23.Text = "Remove McAfee"
+    $System_Drawing_Point = New-Object System.Drawing.Point
+    $System_Drawing_Point.X = 27
+    $System_Drawing_Point.Y = 695
+    $checkBox23.Location = $System_Drawing_Point
+    $checkBox23.DataBindings.DefaultDataSourceUpdateMode = 0
+    $checkBox23.Name = "checkBox23"
+
+    $form1.Controls.Add($checkBox23)
     
     $checkBox21.UseVisualStyleBackColor = $True
     $System_Drawing_Size = New-Object System.Drawing.Size
