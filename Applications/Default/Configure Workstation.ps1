@@ -391,9 +391,10 @@ if ((Get-NetFirewallProfile -Name Public).Enabled -eq $true -and (Get-NetFirewal
 }
 
 Write-Host "Enabling Windows Defender..." -NoNewline
-Set-MpPreference -DisableRealtimeMonitoring $false
-Start-MpService | Out-Null
-if ((Get-MpComputerStatus).RealTimeProtectionEnabled -eq $true) {
+Set-MpPreference -DisableRealtimeMonitoring $false | Out-Null
+Start-Service -Name WinDefend -ErrorAction SilentlyContinue | Out-Null
+$defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+if ($defenderStatus.RealTimeProtectionEnabled -eq $true -and (Get-Service -Name WinDefend -ErrorAction SilentlyContinue).Status -eq 'Running') {
     Write-Host "OK" -ForegroundColor Green
 } else {
     Write-Host "Failed" -ForegroundColor Red
