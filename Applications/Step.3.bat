@@ -81,7 +81,7 @@ if %var3.10%==yes echo "Installing Teamviewer 9"
     REM Remove McAfee Antivirus
     if %var3.11%==yes echo .
     if %var3.11%==yes echo "Removing McAfee Antivirus"
-    if %var3.11%==yes Powershell.exe -NoProfile -Command "Get-CimInstance -ClassName Win32_Product -Filter "Name LIKE 'McAfee%%'" | Invoke-CimMethod -MethodName Uninstall | Out-Null"
+    if %var3.11%==yes Powershell.exe -NoProfile -Command "Get-CimInstance -ClassName Win32_Product -Filter ^"Name LIKE 'McAfee%%'^" | Invoke-CimMethod -MethodName Uninstall | Out-Null"
     if %var3.11%==yes TIMEOUT 120
 
     REM Move next startup scripts and Cleanup previous
