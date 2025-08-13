@@ -3,8 +3,8 @@
 set cpath="C:\Users\%username%\Desktop\Applications"
 call %cpath%\variables.bat
 
-if %var3.1%==no if %var3.2%==no if %var3.3%==no if %var3.4%==no if %var3.5%==no if %var3.6%==no if %var3.7%==no if %var3.8%==no if %var3.9%==no if %var3.10%==no Powershell.exe -Command "Start-Process C:\Users\%username%\Desktop\Applications\Step.4.bat -Verb RunAs 
-if %var3.1%==no if %var3.2%==no if %var3.3%==no if %var3.4%==no if %var3.5%==no if %var3.6%==no if %var3.7%==no if %var3.8%==no if %var3.9%==no if %var3.10%==no STOP
+if %var3.1%==no if %var3.2%==no if %var3.3%==no if %var3.4%==no if %var3.5%==no if %var3.6%==no if %var3.7%==no if %var3.8%==no if %var3.9%==no if %var3.10%==no if %var3.11%==no Powershell.exe -Command "Start-Process C:\Users\%username%\Desktop\Applications\Step.4.bat -Verb RunAs
+if %var3.1%==no if %var3.2%==no if %var3.3%==no if %var3.4%==no if %var3.5%==no if %var3.6%==no if %var3.7%==no if %var3.8%==no if %var3.9%==no if %var3.10%==no if %var3.11%==no STOP
 
 REM Install Teams
 if %var3.1%==yes echo .
@@ -75,11 +75,17 @@ if %var3.9%==yes TIMEOUT 120
 REM Install Teamviewer 9
 if %var3.10%==yes echo .
 if %var3.10%==yes echo "Installing Teamviewer 9"
-if %var3.10%==yes Powershell.exe -Command "Start-Process -FilePath C:\Users\%username%\Desktop\Applications\Ulrich\TeamViewer\*.exe /S -Verb RunAs"
-if %var3.10%==yes TIMEOUT 120
+    if %var3.10%==yes Powershell.exe -Command "Start-Process -FilePath C:\Users\%username%\Desktop\Applications\Ulrich\TeamViewer\*.exe /S -Verb RunAs"
+    if %var3.10%==yes TIMEOUT 120
 
-REM Move next startup scripts and Cleanup previous
-echo "Cleaning up previous scripts."
+    REM Remove McAfee Antivirus
+    if %var3.11%==yes echo .
+    if %var3.11%==yes echo "Removing McAfee Antivirus"
+    if %var3.11%==yes wmic product where "name like 'McAfee%%'" call uninstall /nointeractive
+    if %var3.11%==yes TIMEOUT 120
+
+    REM Move next startup scripts and Cleanup previous
+    echo "Cleaning up previous scripts."
 del "C:\Users\%username%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\Admin.1.bat"
 del "C:\Users\%username%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\Admin.2.bat"
 del "C:\Users\%username%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\Admin.3.bat"
