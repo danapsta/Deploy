@@ -96,7 +96,7 @@ Basically, one file runs another, which runs another...which runs another... unt
 ### ***Step1.bat***
 1. References **variables.bat** to determine which sections execute using if statements.  
 2. Disables IE Enhanced Security mode (Errors on workstations)
-3. Runs **Configure Workstation.ps1** which re-names the computer, disables built-in firewall, and removes built-in bloatware.
+3. Runs **Configure Workstation.ps1** which re-names the computer, enables the built-in firewall and Windows Defender, and removes built-in bloatware.
 4. Sets NTP server to **time.windows.com** and **time.google.com** and configures computer to sync. 
 5. Enables RDP for the workstation
 6. Installs Adobe Reader by downloading and executing the install file. 

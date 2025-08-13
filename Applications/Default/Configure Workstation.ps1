@@ -380,11 +380,20 @@ if (Get-UACLevel -eq "Never notify") {
     Write-Host "Failed" -ForegroundColor Red
 }
 
-#Disable Windows Firewall
-Write-Host "Disabling Windows Firewall..." -NoNewline
-$setFirewallRegistryResult = Set-RegistryValue -key "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" -name "Enabled" -type DWORD -value 0
-Set-NetFirewallProfile -All -Enabled False | Out-Null
-if ((Get-NetFirewallProfile -Name Public).Enabled -eq $false -and (Get-NetFirewallProfile -Name Private).Enabled -eq $false -and (Get-NetFirewallProfile -Name Domain).Enabled -eq $false) {
+#Enable Windows Firewall and Windows Defender
+Write-Host "Enabling Windows Firewall..." -NoNewline
+$setFirewallRegistryResult = Set-RegistryValue -key "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" -name "Enabled" -type DWORD -value 1
+Set-NetFirewallProfile -All -Enabled True | Out-Null
+if ((Get-NetFirewallProfile -Name Public).Enabled -eq $true -and (Get-NetFirewallProfile -Name Private).Enabled -eq $true -and (Get-NetFirewallProfile -Name Domain).Enabled -eq $true) {
+    Write-Host "OK" -ForegroundColor Green
+} else {
+    Write-Host "Failed" -ForegroundColor Red
+}
+
+Write-Host "Enabling Windows Defender..." -NoNewline
+Set-MpPreference -DisableRealtimeMonitoring $false
+Start-MpService | Out-Null
+if ((Get-MpComputerStatus).RealTimeProtectionEnabled -eq $true) {
     Write-Host "OK" -ForegroundColor Green
 } else {
     Write-Host "Failed" -ForegroundColor Red
