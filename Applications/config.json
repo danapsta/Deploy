@@ -12,6 +12,13 @@
 
   "MenuShowDelay": "200",
 
+  "Rmm": {
+    "Provider": "Api",
+    "BaseUrl": "",
+    "SitesRepo": "danapsta/Deploy-Sites",
+    "SitesPath": "sites.json"
+  },
+
   "Downloads": {
     "ChromeMsi": "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi",
     "Firefox": "https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US",

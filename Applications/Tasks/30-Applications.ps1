@@ -30,6 +30,27 @@ Register-DeployTask -Id 'NetExtender' -Name 'Install NetExtender' -Category 'App
     if ($code -notin 0, 1641, 3010) { throw "NetExtender install failed ($code)." }
 }
 
+Register-DeployTask -Id 'RmmAgent' -Name 'Install RMM Agent (ConnectWise)' -Category 'Applications' -Order 220 `
+    -Inputs @('RmmSite') -Presets @('Workstation', 'Server') `
+    -Description 'ConnectWise RMM (itsupport247) agent for the client/site picked in the menu. No portal login needed.' -Action {
+    param($ctx)
+    if (Test-RmmAgentInstalled) { Write-DeployLog 'ConnectWise RMM agent already installed; skipping.'; return }
+    $msi = $ctx.Inputs.RmmMsi
+    if (-not $msi -or -not (Test-Path $msi)) { throw 'Agent installer missing from the working folder. Re-run Deploy and pick the site again.' }
+    Write-DeployLog "Installing RMM agent for $($ctx.Inputs.RmmSite)."
+    $log = Join-Path $ctx.Config.LogDirectory 'rmm-agent.log'
+    $code = Invoke-DeployInstaller -Path $msi -Arguments ('/qn /norestart /l*v "{0}"' -f $log)
+    if ($code -notin 0, 1641, 3010) { throw "Agent install failed ($code). See $log." }
+
+    $deadline = (Get-Date).AddMinutes(2)
+    do {
+        $svc = Get-Service | Where-Object { $_.Name -match 'ITSPlatform' -or $_.DisplayName -match 'ITSPlatform' } | Select-Object -First 1
+        if ($svc -and $svc.Status -eq 'Running') { Write-DeployLog "Agent service '$($svc.DisplayName)' running." OK; return }
+        Start-Sleep -Seconds 10
+    } while ((Get-Date) -lt $deadline)
+    Write-DeployLog 'Agent installed, but its service was not seen running yet. Check the device in the RMM console.' WARN
+}
+
 Register-DeployTask -Id 'Chrome' -Name 'Install Chrome' -Category 'Applications' -Order 230 -Presets @('Workstation', 'Server') `
     -Description 'Google Chrome Enterprise MSI (falls back to Applications\Chrome\Chrome.exe).' -Action {
     param($ctx)

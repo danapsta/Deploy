@@ -35,6 +35,7 @@ if (-not $isAdmin) {
 
 $here = $PSScriptRoot
 Import-Module (Join-Path $here 'Engine\Deploy.Engine.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path $here 'Engine\Rmm.psm1') -Force -DisableNameChecking
 . (Join-Path $here 'Engine\Menu.ps1')
 
 $workRoot = Join-Path $env:ProgramData 'Deploy'
@@ -105,6 +106,15 @@ if (-not $Resume) {
         New-Item -ItemType Directory -Path $workRoot -Force | Out-Null
         & robocopy.exe $here $workRoot /E /NFL /NDL /NJH /NJS /NP /XD Downloads | Out-Null
         if ($LASTEXITCODE -ge 8) { throw "Copy to $workRoot failed (robocopy $LASTEXITCODE)." }
+    }
+    if ($choice.Inputs.ContainsKey('_RmmMsi')) {
+        # Move the pre-fetched agent into the working folder; only its path goes into state.
+        $dl = Join-Path $workRoot 'Downloads'
+        New-Item -ItemType Directory -Path $dl -Force | Out-Null
+        $msi = Join-Path $dl (Split-Path $choice.Inputs['_RmmMsi'] -Leaf)
+        Move-Item -Path $choice.Inputs['_RmmMsi'] -Destination $msi -Force
+        $choice.Inputs.RmmMsi = $msi
+        $choice.Inputs.Remove('_RmmMsi')
     }
     $autoLogon = $choice.Inputs['_AutoLogon']
     $choice.Inputs.Remove('_AutoLogon')   # never written to state

@@ -49,7 +49,7 @@ Useful commands (from an elevated PowerShell in `C:\ProgramData\Deploy`):
 | | Disable Search Web Suggestions | No Bing results in Start/taskbar search |
 | | Classic Context Menu (Win 11) | Full right-click menu without "Show more options" |
 | | Reduce Menu Show Delay | `MenuShowDelay` 200 ms (value in `config.json`) |
-| Applications | Adobe Reader, NetExtender, Chrome, Teams, Firefox, Office, BGInfo, Remove McAfee | Office uses any `configuration-*.xml` in `Applications\O365` (365 x64/x86, 2019, 2021) |
+| Applications | Adobe Reader, NetExtender, RMM Agent, Chrome, Teams, Firefox, Office, BGInfo, Remove McAfee | Office uses any `configuration-*.xml` in `Applications\O365` (365 x64/x86, 2019, 2021) |
 | Windows Update | Windows Patching (until fully updated) | Repeats search/install/reboot until no updates remain |
 | Client Software | Entries from `config.json` → `CustomInstallers` | One menu item per entry |
 | User Settings | Change Default Apps, Change Visual Settings | |
@@ -62,6 +62,26 @@ Typical **Workstation**: Basic Configuration, NTP, RDP, all registry tweaks, Ado
 Patching, Default Apps, Visual Settings, Admin Password.
 Typical **Server**: Basic Configuration, NTP, RDP, Verbose Status, Long Paths, Menu Delay, Chrome,
 Patching, BGInfo, Visual Settings, Add to Domain, Admin Password.
+
+## ConnectWise RMM agent
+
+**Install RMM Agent** installs the ConnectWise RMM (control.itsupport247.net) agent for the client/site you
+pick in the menu, without signing in to the portal. The installer is per site: its file name carries the site
+token, and the agent registers itself with it.
+
+1. Paste the **RMM key** into the menu (from ITGlue or your password manager) and click **Load sites**.
+2. Pick the client / site (type to search). The agent is downloaded and checked when you click Start,
+   so a bad key or site shows up before you walk away.
+
+`Applications\config.json` -> `Rmm.Provider` sets where sites come from:
+
+| Provider | RMM key | Setup |
+|---|---|---|
+| `Api` | `clientId:clientSecret` of an API client (RMM portal: Integrations > API Access) | Run `Applications\Tools\Test-RmmApi.ps1` once and send the output so the endpoints can be wired up |
+| `PrivateList` | Fine-grained GitHub token, read-only, for the private repo only | `sites.json` in `Rmm.SitesRepo`: `[{"Client":"...","Site":"...","Url":"...","Token":"..."}]`, copied once per site from Devices > Manage > Download Agent |
+
+The key is only kept in memory, never in `state.json` or the repo. The downloaded agent is deleted with the rest of
+the working folder at the end.
 
 ## How it works
 
