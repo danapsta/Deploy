@@ -94,28 +94,10 @@ function Show-DeployMenu {
     if ($default) { $cbOffice.SelectedItem = $default } elseif ($officeConfigs.Count) { $cbOffice.SelectedIndex = 0 }
     [void](Add-Field 'Office configuration (Applications\O365)' $cbOffice)
 
-    # ConnectWise RMM agent: one key, then pick the client/site.
-    $script:rmmSites = @()
-    $keyLabel = if ($Config.Rmm.Provider -eq 'PrivateList') { 'RMM site-list key (GitHub token)' } else { 'RMM API key (clientId:clientSecret)' }
-    $tbRmmKey = Add-Field $keyLabel (New-TextBox -Password)
-    $btnRmm = New-Object System.Windows.Forms.Button
-    $btnRmm.Text = 'Load sites'; $btnRmm.AutoSize = $true
-    $side.Controls.Add($btnRmm)
-    $cbRmm = New-Object System.Windows.Forms.ComboBox
-    $cbRmm.DropDownStyle = 'DropDown'; $cbRmm.AutoCompleteMode = 'SuggestAppend'; $cbRmm.AutoCompleteSource = 'ListItems'
-    [void](Add-Field 'RMM client / site (type to search)' $cbRmm)
-    $btnRmm.Add_Click({
-        $form.Cursor = 'WaitCursor'
-        try {
-            $script:rmmSites = @(Get-RmmSites -Config $Config -Key $tbRmmKey.Text.Trim())
-            $cbRmm.Items.Clear()
-            foreach ($site in $script:rmmSites) { [void]$cbRmm.Items.Add($site.Display) }
-            $btnRmm.Text = "Load sites ($($script:rmmSites.Count) loaded)"
-            $cbRmm.Focus()
-        } catch {
-            [void][System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Deploy - RMM', 'OK', 'Warning')
-        } finally { $form.Cursor = 'Default' }
-    })
+    # ConnectWise RMM agent: copied from the RMM portal (Devices > Manage > Download Agent > pick the site).
+    $tbRmmSite  = Add-Field 'RMM client / site name (for the summary)' (New-TextBox)
+    $tbRmmUrl   = Add-Field 'RMM Windows agent download URL' (New-TextBox)
+    $tbRmmToken = Add-Field 'RMM site token' (New-TextBox -Password)
 
     # Auto sign-in: only asked for when this account has a password.
     $tbSignIn = $null
@@ -181,11 +163,15 @@ function Show-DeployMenu {
             if (-not $cbOffice.SelectedItem) { $errors += 'No Office configuration XML found in Applications\O365.' }
             $inputs.OfficeConfig = [string]$cbOffice.SelectedItem
         }
-        $rmmSite = $null
+        $rmm = $null
         if ($needs -contains 'RmmSite') {
-            $rmmSite = $script:rmmSites | Where-Object { $_.Display -eq $cbRmm.Text } | Select-Object -First 1
-            if (-not $rmmSite) { $errors += 'RMM: enter the key, click Load sites, then pick a client / site.' }
-            else { $inputs.RmmSite = $rmmSite.Display }
+            $u = $tbRmmUrl.Text.Trim(); $tok = $tbRmmToken.Text.Trim()
+            if ($u -notmatch '^https://\S+$') { $errors += 'RMM: paste the Windows agent download URL (starts with https://).' }
+            elseif (-not $tok -and $u -notmatch 'TKN[^/]*\.msi$') { $errors += 'RMM: paste the site token.' }
+            else {
+                $rmm = @{ Url = $u; Token = $tok; Site = $tbRmmSite.Text.Trim() }
+                $inputs.RmmSite = if ($rmm.Site) { $rmm.Site } else { 'site token ending ' + $(if ($tok.Length -ge 4) { $tok.Substring($tok.Length - 4) } else { '(from URL)' }) }
+            }
         }
         if ($tbSignIn) {
             if (-not $tbSignIn.Text) {
@@ -202,10 +188,10 @@ function Show-DeployMenu {
         $summary = ($selected | ForEach-Object { " - $($_.Name)" }) -join "`n"
         $ok = [System.Windows.Forms.MessageBox]::Show("Run these tasks? The PC will reboot as needed.`n`n$summary", 'Deploy - confirm', 'OKCancel', 'Question')
         if ($ok -ne 'OK') { return }
-        if ($rmmSite) {
-            # Fetch and check the agent now, so a bad key or site shows up before the tech walks away.
+        if ($rmm) {
+            # Fetch and check the agent now, so a wrong URL or token shows up before the tech walks away.
             $form.Cursor = 'WaitCursor'
-            try { $inputs['_RmmMsi'] = Get-RmmInstaller -Config $Config -Key $tbRmmKey.Text.Trim() -Site $rmmSite -Directory (Join-Path $env:TEMP 'Deploy-Rmm') }
+            try { $inputs['_RmmMsi'] = Get-RmmInstaller -Url $rmm.Url -Token $rmm.Token -SiteName $rmm.Site -Directory (Join-Path $env:TEMP 'Deploy-Rmm') }
             catch { [void][System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Deploy - RMM', 'OK', 'Warning'); return }
             finally { $form.Cursor = 'Default' }
         }
@@ -214,7 +200,7 @@ function Show-DeployMenu {
     })
 
     # Only enable the inputs the ticked tasks actually need.
-    $fieldMap = @{ ComputerName = @($tbName); AdminAccount = @($tbAccount); AdminPassword = @($tbPw1, $tbPw2); Domain = @($tbDomain); OneDriveTenant = @($tbTenant); OfficeConfig = @($cbOffice); RmmSite = @($tbRmmKey, $btnRmm, $cbRmm) }
+    $fieldMap = @{ ComputerName = @($tbName); AdminAccount = @($tbAccount); AdminPassword = @($tbPw1, $tbPw2); Domain = @($tbDomain); OneDriveTenant = @($tbTenant); OfficeConfig = @($cbOffice); RmmSite = @($tbRmmSite, $tbRmmUrl, $tbRmmToken) }
     $updateFields = {
         $needed = @($tasks | Where-Object { $checks[$_.Id].Checked } | ForEach-Object { $_.Inputs })
         foreach ($k in $fieldMap.Keys) { foreach ($c in $fieldMap[$k]) { $c.Enabled = ($needed -contains $k) } }

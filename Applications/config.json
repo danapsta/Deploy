@@ -13,12 +13,6 @@
   "MenuShowDelay": "200",
   "EdgeHomepage": "",
 
-  "Rmm": {
-    "Provider": "PrivateList",
-    "BaseUrl": "",
-    "SitesRepo": "danapsta/Deploy-Sites",
-    "SitesPath": "sites.json"
-  },
 
   "Downloads": {
     "ChromeMsi": "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi",

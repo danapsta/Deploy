@@ -31,7 +31,7 @@ Register-DeployTask -Id 'AdobeReader' -Name 'Install Adobe Reader' -Category 'Ap
 
 Register-DeployTask -Id 'RmmAgent' -Name 'Install RMM Agent (ConnectWise)' -Category 'Applications' -Order 220 `
     -Inputs @('RmmSite') `
-    -Description 'ConnectWise RMM (itsupport247) agent for the client/site picked in the menu. No portal login needed.' -Action {
+    -Description 'ConnectWise RMM (itsupport247) agent for one site: paste its download URL and token from Devices > Manage > Download Agent.' -Action {
     param($ctx)
     if (Test-RmmAgentInstalled) { Write-DeployLog 'ConnectWise RMM agent already installed; skipping.'; return }
     $msi = $ctx.Inputs.RmmMsi

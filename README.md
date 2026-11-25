@@ -59,7 +59,7 @@ Useful commands (from an elevated PowerShell in `C:\ProgramData\Deploy`):
 | User Experience | Show File Extensions, Show Hidden Items, Skip Edge First Run | W S | Edge homepage: `EdgeHomepage` in config.json |
 | | Clean Taskbar and Start, OneDrive silent sign-in | W | OneDrive folder backup needs the tenant ID (menu field) |
 | | Turn Off Copilot and Recall | off | Undo: `Applications\Tools\Undo-CopilotRecall.ps1` |
-| Applications | Adobe Reader (W), Chrome (W S), RMM Agent (off) | | RMM: agent per client/site, see below |
+| Applications | Adobe Reader (W), Chrome (W S), RMM Agent (off) | | RMM: paste the site's URL + token, see below |
 | | 7-Zip, Notepad++, VLC, Teams (machine-wide), Firefox, Office, BGInfo (S), Remove McAfee | | Office configs exclude Teams |
 | Windows Update | Windows Patching (until fully updated) | W S | One update at a time with `[3/12] Installing ...` status |
 | Client Software | `CustomInstallers` in config.json | | None at the moment |
@@ -87,40 +87,20 @@ Forward them to the RMM/SIEM if they need to be kept longer. Deploy's own log: `
 
 ## ConnectWise RMM agent
 
-**Install RMM Agent** installs the ConnectWise RMM (control.itsupport247.net) agent for the client/site you
-pick in the menu, without signing in to the portal. The installer is per site: its file name carries the site
+**Install RMM Agent** (off by default) installs the ConnectWise RMM (control.itsupport247.net) agent for one
+site without signing in to the portal on the machine. The installer is per site: its file name carries the site
 token, and the agent registers itself with it.
 
-1. Paste the **RMM key** into the menu (from ITGlue or your password manager) and click **Load sites**.
-2. Pick the client / site (type to search). The agent is downloaded and checked when you click Start,
-   so a bad key or site shows up before you walk away.
+1. In the RMM portal (any PC): **Devices > Manage > Download Agent >** pick the client's site.
+2. In the Deploy menu, tick **Install RMM Agent** and fill in:
+   - **RMM client / site name**, used for the summary and the installer name (optional);
+   - **RMM Windows agent download URL**, the Windows OS agent URL from that page;
+   - **RMM site token**, the token from the same page. You can leave it blank if the URL already ends in `..._TKN<token>.msi`.
+3. When you click Start, the agent is downloaded and checked, so a wrong URL or token shows up before you walk away.
 
-`Applications\config.json` -> `Rmm.Provider` sets where sites come from:
-
-| Provider | RMM key | Setup |
-|---|---|---|
-| `Api` | `clientId:clientSecret` of an API client (RMM portal: Integrations > API Access) | Run `Applications\Tools\Test-RmmApi.ps1` once and send the output so the endpoints can be wired up |
-| `PrivateList` | Fine-grained GitHub token, read-only, for the private repo only | `sites.json` in `Rmm.SitesRepo`: `[{"Client":"...","Site":"...","Url":"...","Token":"..."}]`, copied once per site from Devices > Manage > Download Agent |
-
-### Setting up the site list
-
-`sites.json` in the private repo [danapsta/Deploy-Sites](https://github.com/danapsta/Deploy-Sites) has one
-entry per client site. Both values come from the RMM portal: **Devices > Manage > Download Agent >** pick the site.
-
-```json
-[
-  { "Client": "Acme Corp", "Site": "Main Office", "Url": "<Windows OS agent URL>", "Token": "<site token>" }
-]
-```
-
-Edit it on github.com and commit; Deploy reads the latest version every run.
-
-The **RMM site-list key** is a GitHub fine-grained token (GitHub > Settings > Developer settings >
-Fine-grained tokens): *Only select repositories* = `Deploy-Sites`, *Contents* = Read-only, nothing else.
-Store it in ITGlue for techs to paste.
-
-The key is only kept in memory, never in `state.json` or the repo. The downloaded agent is deleted with the rest of
-the working folder at the end.
+Nothing is stored in the repo. The values are used for this run only, and the downloaded installer is deleted with
+the working folder at the end. Install log: `C:\Temp\DeployLogs\rmm-agent.log`.
+A shared site list or a live RMM API lookup can be added later (`Applications\Tools\Test-RmmApi.ps1` probes the API).
 
 ## Windows version support
 

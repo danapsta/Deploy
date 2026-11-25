@@ -1,48 +1,14 @@
 <#
-    ConnectWise RMM (Asio / control.itsupport247.net) agent lookup.
+    ConnectWise RMM (Asio / control.itsupport247.net) agent download.
 
     The agent installer is per site: the MSI carries the site token in its file name
-    (<Site>_Windows_OS_ITSPlatform_TKN<token>.msi) and registers itself with it, so once the right
-    URL + token are known no portal login is needed.
+    (<Site>_Windows_OS_ITSPlatform_TKN<token>.msi) and registers itself with it, so with the site's
+    download URL + token no portal login is needed on the machine.
 
-    Providers (config.json -> Rmm.Provider):
-      PrivateList - sites.json in a private GitHub repo: [{ "Client", "Site", "Url", "Token" }]
-                    Key = a fine-grained GitHub token with read access to that repo only.
-      Api         - ConnectWise RMM partner API. Key = "clientId:clientSecret".
-                    Endpoints are filled in once Tools\Test-RmmApi.ps1 has confirmed them.
-
-    The key is only ever held in memory. Keep this file ASCII (Windows PowerShell 5.1).
+    Both values are typed into the Deploy menu (RMM portal: Devices > Manage > Download Agent > site).
+    Nothing is stored in the repo. A shared site list or API lookup can be added later
+    (Tools\Test-RmmApi.ps1 probes the API). Keep this file ASCII (Windows PowerShell 5.1).
 #>
-
-function Get-RmmSites {
-    <# Returns site objects: Client, Site, Display, plus provider-specific fields. #>
-    param([Parameter(Mandatory)][hashtable]$Config, [Parameter(Mandatory)][string]$Key)
-    $rmm = $Config.Rmm
-    switch ($rmm.Provider) {
-        'PrivateList' {
-            $uri = 'https://api.github.com/repos/{0}/contents/{1}' -f $rmm.SitesRepo, $rmm.SitesPath
-            $headers = @{ Authorization = "Bearer $Key"; Accept = 'application/vnd.github.raw'; 'User-Agent' = 'Deploy'; 'X-GitHub-Api-Version' = '2022-11-28' }
-            try { $raw = Invoke-WebRequest -Uri $uri -Headers $headers -UseBasicParsing -ErrorAction Stop }
-            catch {
-                $code = $null; try { $code = [int]$_.Exception.Response.StatusCode } catch { }
-                if ($code -in 401, 403, 404) { throw "GitHub refused the key (HTTP $code). Check the token and its access to $($rmm.SitesRepo)." }
-                throw "Could not load the site list: $($_.Exception.Message)"
-            }
-            # The raw media type comes back as application/octet-stream, so Content may be a byte[].
-            $text = if ($raw.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($raw.Content) } else { [string]$raw.Content }
-            # Windows PowerShell 5.1 emits a JSON array as ONE pipeline object; assign first, then enumerate.
-            $parsed = ConvertFrom-Json -InputObject $text.TrimStart([char]0xFEFF)
-            $sites = @(foreach ($item in $parsed) { $item })
-            return $sites | ForEach-Object {
-                [pscustomobject]@{ Client = $_.Client; Site = $_.Site; Url = $_.Url; Token = $_.Token; Display = '{0} - {1}' -f $_.Client, $_.Site }
-            } | Sort-Object Display
-        }
-        'Api' {
-            throw 'The RMM API provider is not wired up yet. Run Applications\Tools\Test-RmmApi.ps1 and send the output, or set Rmm.Provider to "PrivateList" in config.json.'
-        }
-        default { throw "Unknown Rmm.Provider '$($rmm.Provider)' in config.json." }
-    }
-}
 
 function Get-MsiProductName {
     param([Parameter(Mandatory)][string]$Path)
@@ -60,37 +26,38 @@ function Get-MsiProductName {
 
 function Get-RmmInstaller {
     <#
-        Downloads the agent MSI for $Site into $Directory and checks it really is the ITSPlatform agent.
-        Returns the MSI path. Done at menu time so a bad key/site shows up before the tech walks away.
+        Downloads the agent MSI into $Directory and checks it really is the ITSPlatform agent.
+        Returns the MSI path. Called at menu time so a wrong URL/token shows up before the tech walks away.
+        -Token can be omitted when the URL's file name already contains it (..._TKN<token>.msi).
     #>
     param(
-        [Parameter(Mandatory)][hashtable]$Config,
-        [Parameter(Mandatory)][string]$Key,
-        [Parameter(Mandatory)]$Site,
+        [Parameter(Mandatory)][string]$Url,
+        [string]$Token,
+        [string]$SiteName,
         [Parameter(Mandatory)][string]$Directory
     )
-    switch ($Config.Rmm.Provider) {
-        'PrivateList' { $url = $Site.Url; $token = $Site.Token }
-        'Api'         { throw 'The RMM API provider is not wired up yet.' }
+    $urlFile = [IO.Path]::GetFileName(([Uri]$Url).AbsolutePath)
+    if ($Token) {
+        # Keep the vendor's naming: the token in the file name is how the agent knows its site.
+        $label = if ($SiteName) { $SiteName } else { 'Site' }
+        $fileName = '{0}_Windows_OS_ITSPlatform_TKN{1}.msi' -f ($label -replace '[^A-Za-z0-9_-]', '_'), $Token.Trim()
+    } elseif ($urlFile -match 'TKN.+\.msi$') {
+        $fileName = $urlFile
+    } else {
+        throw 'Enter the site token (the URL does not contain one).'
     }
-    if (-not $url) { throw "No download URL for $($Site.Display)." }
-
-    # Keep the vendor's naming: the token in the file name is how the agent knows its site.
-    $safeSite = ($Site.Site -replace '[^A-Za-z0-9_-]', '_')
-    $fileName = if ($token) { '{0}_Windows_OS_ITSPlatform_TKN{1}.msi' -f $safeSite, $token }
-                else { [IO.Path]::GetFileName(([Uri]$url).AbsolutePath) }
     if (-not (Test-Path $Directory)) { New-Item -ItemType Directory -Path $Directory -Force | Out-Null }
     $path = Join-Path $Directory $fileName
 
     for ($i = 1; $i -le 3; $i++) {
-        try { Invoke-WebRequest -Uri $url -OutFile $path -UseBasicParsing -ErrorAction Stop; break }
+        try { Invoke-WebRequest -Uri $Url -OutFile $path -UseBasicParsing -ErrorAction Stop; break }
         catch { if ($i -eq 3) { throw "Agent download failed: $($_.Exception.Message)" }; Start-Sleep -Seconds (3 * $i) }
     }
     $product = $null
     try { $product = Get-MsiProductName -Path $path } catch { }
     if ($product -notmatch 'ITSPlatform') {
         Remove-Item $path -Force -ErrorAction SilentlyContinue
-        throw "The downloaded file is not the ConnectWise RMM agent (ProductName: '$product'). Check the site's URL."
+        throw "The downloaded file is not the ConnectWise RMM agent (ProductName: '$product'). Check the download URL."
     }
     return $path
 }
@@ -101,4 +68,4 @@ function Test-RmmAgentInstalled {
         Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -match 'ITSPlatform' } | Select-Object -First 1)
 }
 
-Export-ModuleMember -Function Get-RmmSites, Get-RmmInstaller, Test-RmmAgentInstalled
+Export-ModuleMember -Function Get-RmmInstaller, Test-RmmAgentInstalled
