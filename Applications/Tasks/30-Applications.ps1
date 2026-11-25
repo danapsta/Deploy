@@ -3,6 +3,7 @@
 # shipped in the Applications folder.
 
 Register-DeployTask -Id 'AdobeReader' -Name 'Install Adobe Reader' -Category 'Applications' -Order 200 -Presets @('Workstation') `
+    -Requires { param($os) if ($os.Build -lt 14393) { 'Current Reader needs Windows 10 / Server 2016 or newer' } } `
     -Description 'Adobe Acrobat Reader via winget when available, otherwise the download page fallback.' -Action {
     param($ctx)
     $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
@@ -17,20 +18,13 @@ Register-DeployTask -Id 'AdobeReader' -Name 'Install Adobe Reader' -Category 'Ap
     $link = ($page.Links | Where-Object { $_.outerHTML -match 'Download Adobe Acrobat Reader' } | Select-Object -First 1).href
     if (-not $link) { $link = ($page.Links | Where-Object { $_.href -match 'AcroRdr.*\.exe' } | Select-Object -First 1).href }
     if (-not $link) { throw 'Could not find an Adobe Reader download link.' }
-    $link = ([Uri]::new([Uri]$ctx.Config.Downloads.AdobeReaderScrapePage, [string]$link)).AbsoluteUri
+    $link = (New-Object Uri ([Uri]$ctx.Config.Downloads.AdobeReaderScrapePage), [string]$link).AbsoluteUri
     $exe = Get-DeployDownload -Url $link -Destination (Join-Path $ctx.DownloadPath 'AdobeReaderInstaller.exe')
     [void](Invoke-DeployInstaller -Path $exe -Arguments '/sAll /rs /msi EULA_ACCEPT=YES')
 }
 
-Register-DeployTask -Id 'NetExtender' -Name 'Install NetExtender' -Category 'Applications' -Order 210 `
-    -Description 'SonicWall NetExtender VPN client (URL set in config.json).' -Action {
-    param($ctx)
-    $msi = Get-DeployDownload -Url $ctx.Config.Downloads.NetExtender -Destination (Join-Path $ctx.DownloadPath 'NetExtender.msi')
-    $code = Invoke-DeployInstaller -Path $msi -Arguments '/qn /norestart'
-    if ($code -notin 0, 1641, 3010) { throw "NetExtender install failed ($code)." }
-}
-
 Register-DeployTask -Id 'Chrome' -Name 'Install Chrome' -Category 'Applications' -Order 230 -Presets @('Workstation', 'Server') `
+    -Requires { param($os) if ($os.Build -lt 10240) { 'Chrome no longer supports Server 2012 R2 (last version: 109)' } } `
     -Description 'Google Chrome Enterprise MSI (falls back to Applications\Chrome\Chrome.exe).' -Action {
     param($ctx)
     try {
@@ -43,19 +37,24 @@ Register-DeployTask -Id 'Chrome' -Name 'Install Chrome' -Category 'Applications'
     [void](Invoke-DeployInstaller -Path $exe -Arguments '/silent /install')
 }
 
-Register-DeployTask -Id 'Teams' -Name 'Install Teams' -Category 'Applications' -Order 400 `
-    -Description 'New Microsoft Teams, provisioned for all users with the official bootstrapper.' -Action {
+Register-DeployTask -Id 'Teams' -Name 'Install Teams (machine-wide)' -Category 'Applications' -Order 400 `
+    -Requires { param($os)
+        if ($os.IsServer -and $os.Build -lt 17763) { 'New Teams needs Server 2019 or newer' }
+        elseif (-not $os.IsServer -and $os.Build -lt 19041) { 'New Teams needs Windows 10 2004 or newer' } } `
+    -Description 'New Microsoft Teams provisioned machine-wide (every user gets it) with teamsbootstrapper -p. Separate from Office; the Office configs exclude Teams.' -Action {
     param($ctx)
     $exe = Get-DeployDownload -Url $ctx.Config.Downloads.TeamsBootstrapper -Destination (Join-Path $ctx.DownloadPath 'teamsbootstrapper.exe')
+    # -p provisions the MSIX for all users on the machine (not a per-user install).
     $code = Invoke-DeployInstaller -Path $exe -Arguments '-p'
     if ($code -ne 0) { throw "Teams bootstrapper returned $code." }
 }
 
 Register-DeployTask -Id 'Firefox' -Name 'Install Firefox' -Category 'Applications' -Order 410 `
-    -Description 'Latest Firefox (64-bit, full installer, silent).' -Action {
+    -Description 'Latest Firefox (64-bit, silent). Server 2012 R2 gets Firefox ESR 115, the last version that supports it.' -Action {
     param($ctx)
+    $url = if ($ctx.OS.Build -lt 10240) { $ctx.Config.Downloads.FirefoxLegacy } else { $ctx.Config.Downloads.Firefox }
     try {
-        $exe = Get-DeployDownload -Url $ctx.Config.Downloads.Firefox -Destination (Join-Path $ctx.DownloadPath 'FirefoxSetup.exe')
+        $exe = Get-DeployDownload -Url $url -Destination (Join-Path $ctx.DownloadPath 'FirefoxSetup.exe')
         [void](Invoke-DeployInstaller -Path $exe -Arguments '/S')
     } catch {
         # The bundled file is the stub installer, which cannot run silently.
@@ -67,6 +66,7 @@ Register-DeployTask -Id 'Firefox' -Name 'Install Firefox' -Category 'Application
 }
 
 Register-DeployTask -Id 'Office' -Name 'Install Office' -Category 'Applications' -Order 420 -Inputs @('OfficeConfig') `
+    -Requires { param($os) if ($os.Build -lt 14393) { 'Current Office needs Windows 10 / Server 2016 or newer' } } `
     -Description 'Office Deployment Tool with a configuration XML from Applications\O365 (365, 2019 or 2021).' -Action {
     param($ctx)
     $setup = Join-Path $ctx.AppsPath 'O365\setup.exe'
@@ -77,28 +77,30 @@ Register-DeployTask -Id 'Office' -Name 'Install Office' -Category 'Applications'
 }
 
 Register-DeployTask -Id 'BgInfo' -Name 'Install BGInfo' -Category 'Applications' -Order 430 -Presets @('Server') `
-    -Description 'Sysinternals BGInfo to C:\BgInfo, run at every logon.' -Action {
+    -Description 'Sysinternals BGInfo in C:\BgInfo, refreshed at every logon. Uses Applications\BgInfo\logon.bgi for the layout if present.' -Action {
     param($ctx)
     $dir = 'C:\BgInfo'
     if (Test-Path $dir) { Remove-Item "$dir\*" -Recurse -Force -ErrorAction SilentlyContinue }
     else { New-Item $dir -ItemType Directory -Force | Out-Null }
 
     $zip = Get-DeployDownload -Url $ctx.Config.Downloads.BgInfo -Destination (Join-Path $ctx.DownloadPath 'BGInfo.zip')
-    Expand-Archive -Path $zip -DestinationPath $dir -Force
+    Expand-DeployZip -Path $zip -Destination $dir
 
-    $bgi = ''
-    if ($ctx.Config.Downloads.BgInfoLogonBgi) {
-        try {
-            $bgiZip = Get-DeployDownload -Url $ctx.Config.Downloads.BgInfoLogonBgi -Destination (Join-Path $ctx.DownloadPath 'LogonBgi.zip')
-            Expand-Archive -Path $bgiZip -DestinationPath $dir -Force
-            if (Test-Path "$dir\logon.bgi") { $bgi = "$dir\logon.bgi" }
-        } catch { Write-DeployLog 'Custom logon.bgi unavailable; BGInfo will use its default layout.' WARN }
-    }
-    $exe = if (Test-Path "$dir\Bginfo64.exe") { "$dir\Bginfo64.exe" } else { "$dir\Bginfo.exe" }
-    $cmd = ('"{0}" {1} /timer:0 /nolicprompt /silent' -f $exe, $bgi) -replace '\s+', ' '
-    Set-RegValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name BgInfo -Value $cmd -Type String
-    Start-Process -FilePath $exe -ArgumentList (('{0} /timer:0 /nolicprompt /silent' -f $bgi).Trim())
-    Write-DeployLog 'BGInfo installed and set to run at logon.' OK
+    # Layout: a .bgi saved from the BGInfo GUI (File > Save As) and committed to Applications\BgInfo.
+    # Without one, BGInfo shows its built-in default fields.
+    $bgiArg = ''
+    $custom = Join-Path $ctx.AppsPath 'BgInfo\logon.bgi'
+    if (Test-Path $custom) {
+        Copy-Item $custom "$dir\logon.bgi" -Force
+        $bgiArg = '"C:\BgInfo\logon.bgi" '
+        Write-DeployLog 'Using custom layout Applications\BgInfo\logon.bgi.'
+    } else { Write-DeployLog 'No Applications\BgInfo\logon.bgi; using BGInfo default fields.' WARN }
+
+    $exe = if ($ctx.OS.Is64Bit -and (Test-Path "$dir\Bginfo64.exe")) { "$dir\Bginfo64.exe" } else { "$dir\Bginfo.exe" }
+    $runArgs = '{0}/timer:0 /nolicprompt /silent' -f $bgiArg
+    Set-RegValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name BgInfo -Value ('"{0}" {1}' -f $exe, $runArgs) -Type String
+    Start-Process -FilePath $exe -ArgumentList $runArgs
+    Write-DeployLog 'BGInfo installed and set to refresh at every logon.' OK
 }
 
 Register-DeployTask -Id 'RemoveMcAfee' -Name 'Remove McAfee' -Category 'Applications' -Order 440 `
@@ -123,7 +125,9 @@ Register-DeployTask -Id 'RemoveMcAfee' -Name 'Remove McAfee' -Category 'Applicat
     $ctx.Result = 'CompleteNeedsReboot'
 }
 
-# Client-specific installers come from config.json "CustomInstallers". Each entry becomes a menu item.
+# Client-specific installers come from config.json "CustomInstallers" (currently none).
+# Each entry becomes a menu item: { "Id": "...", "Name": "...", "Path": "Folder\\*.msi", "Arguments": "/qn" }
+# with the installer placed in Applications\Folder.
 $script:customOrder = 450
 foreach ($ci in @((Get-DeployConfig).CustomInstallers)) {
     if (-not $ci) { continue }

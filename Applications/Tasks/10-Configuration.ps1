@@ -61,7 +61,7 @@ function script:Remove-DeployAppx {
 
 Register-DeployTask -Id 'BaseConfig' -Name 'Basic Computer Configuration' -Category 'Configuration' -Order 100 `
     -Inputs @('ComputerName') -Presets @('Workstation', 'Server') `
-    -Description 'Rename PC, disable IE ESC, UAC prompt level, firewall + Defender on, time zone, power plan, debloat built-in apps.' `
+    -Description 'Rename PC, disable IE ESC, UAC prompt level, firewall + Defender on, time zone, power plan, debloat built-in apps (desktops).' `
     -Action {
     param($ctx)
     $cfg = $ctx.Config
@@ -94,15 +94,20 @@ Register-DeployTask -Id 'BaseConfig' -Name 'Basic Computer Configuration' -Categ
         else { Write-DeployLog 'Windows Defender real-time protection is off (third-party AV?).' WARN }
     } catch { Write-DeployLog "Windows Defender not configurable: $($_.Exception.Message)" WARN }
 
-    Set-TimeZone -Id $cfg.TimeZone
+    if (Get-Command Set-TimeZone -ErrorAction SilentlyContinue) { Set-TimeZone -Id $cfg.TimeZone }
+    else { & tzutil.exe /s "$($cfg.TimeZone)" }   # PowerShell 4 (Server 2012 R2)
     Set-RegValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' -Name DynamicDaylightTimeDisabled -Value 0
     Write-DeployLog "Time zone set to $($cfg.TimeZone)." OK
 
     Write-DeployLog 'Configuring power plan:'
     Set-DeployPowerPlan -PlanName $cfg.PowerPlanName
 
-    Write-DeployLog 'Removing built-in apps:'
-    foreach ($f in $cfg.RemoveAppxPackages) { Remove-DeployAppx -Filter $f }
+    if ($ctx.OS.IsServer) {
+        Write-DeployLog 'Server OS: skipping built-in app removal (no consumer apps to remove).'
+    } else {
+        Write-DeployLog 'Removing built-in apps:'
+        foreach ($f in $cfg.RemoveAppxPackages) { Remove-DeployAppx -Filter $f }
+    }
 
     $newName = $ctx.Inputs.ComputerName
     if ($newName -and $newName -ne $env:COMPUTERNAME) {
