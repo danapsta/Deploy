@@ -11,6 +11,7 @@
   "RemoveSourceAfterRun": true,
 
   "MenuShowDelay": "200",
+  "EdgeHomepage": "",
 
   "Rmm": {
     "Provider": "PrivateList",

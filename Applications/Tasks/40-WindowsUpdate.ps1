@@ -13,8 +13,9 @@ function script:Invoke-DeployUpdatePass {
         $searcher.ServerSelection = 3   # ssOthers
         $searcher.ServiceID = '7971f918-a847-4430-9279-4a52d1efe18d'
     }
-    Write-DeployLog 'Searching for updates...'
+    Write-DeployStatus '  Searching for updates (this can take several minutes on a new PC) ...'
     $result = $searcher.Search("IsInstalled=0 and IsHidden=0")
+    Write-DeployStatus ('  Search complete: {0} update(s) available.' -f $result.Updates.Count) -Done
 
     $todo = New-Object -ComObject 'Microsoft.Update.UpdateColl'
     foreach ($u in $result.Updates) {
@@ -25,27 +26,43 @@ function script:Invoke-DeployUpdatePass {
     }
     if ($todo.Count -eq 0) { return @{ Found = 0; Installed = 0; Reboot = $false } }
 
+    # One update at a time so the console shows which update is being worked on: "[3/12] Downloading ...".
+    # (The Windows Update API only reports live percentages through COM callbacks, which PowerShell can't host reliably.)
+    $n = $todo.Count
     $downloader = $Session.CreateUpdateDownloader()
-    $downloader.Updates = $todo
-    Write-DeployLog "Downloading $($todo.Count) update(s)..."
-    [void]$downloader.Download()
-
     $ready = New-Object -ComObject 'Microsoft.Update.UpdateColl'
-    foreach ($u in $todo) { if ($u.IsDownloaded) { [void]$ready.Add($u) } else { Write-DeployLog "  Download failed: $($u.Title)" WARN } }
-    if ($ready.Count -eq 0) { return @{ Found = $todo.Count; Installed = 0; Reboot = $false } }
+    for ($i = 0; $i -lt $n; $i++) {
+        $u = $todo.Item($i)
+        $size = if ($u.MaxDownloadSize -gt 0) { ' (' + (Format-DeploySize $u.MaxDownloadSize) + ')' } else { '' }
+        if (-not $u.IsDownloaded) {
+            Write-DeployStatus ('  [{0}/{1}] Downloading {2}{3} ...' -f ($i + 1), $n, $u.Title, $size)
+            $one = New-Object -ComObject 'Microsoft.Update.UpdateColl'; [void]$one.Add($u)
+            $downloader.Updates = $one
+            try { [void]$downloader.Download() } catch { }
+        }
+        if ($u.IsDownloaded) { [void]$ready.Add($u) }
+        else { Write-DeployStatus -Clear; Write-DeployLog "  Download failed: $($u.Title)" WARN }
+    }
+    Write-DeployStatus ('  Downloaded {0} of {1} update(s).' -f $ready.Count, $n) -Done
+    if ($ready.Count -eq 0) { return @{ Found = $n; Installed = 0; Reboot = $false } }
 
     $installer = $Session.CreateUpdateInstaller()
-    $installer.Updates = $ready
-    Write-DeployLog "Installing $($ready.Count) update(s)..."
-    $res = $installer.Install()
-
-    $ok = 0
-    for ($i = 0; $i -lt $ready.Count; $i++) {
-        $code = $res.GetUpdateResult($i).ResultCode   # 2 = succeeded, 3 = succeeded with errors
-        if ($code -in 2, 3) { $ok++; Write-DeployLog "  Installed: $($ready.Item($i).Title)" OK }
-        else { Write-DeployLog "  Failed (result $code): $($ready.Item($i).Title)" WARN }
+    $ok = 0; $reboot = $false
+    $m = $ready.Count
+    for ($i = 0; $i -lt $m; $i++) {
+        $u = $ready.Item($i)
+        Write-DeployStatus ('  [{0}/{1}] Installing {2} ...' -f ($i + 1), $m, $u.Title)
+        $one = New-Object -ComObject 'Microsoft.Update.UpdateColl'; [void]$one.Add($u)
+        $installer.Updates = $one
+        $clock = [Diagnostics.Stopwatch]::StartNew()
+        $code = 4
+        try { $res = $installer.Install(); $code = $res.GetUpdateResult(0).ResultCode; if ($res.RebootRequired) { $reboot = $true } } catch { }
+        Write-DeployStatus -Clear
+        $took = '{0:m\:ss}' -f $clock.Elapsed
+        if ($code -in 2, 3) { $ok++; Write-DeployLog "  [$($i + 1)/$m] Installed ($took): $($u.Title)" OK }   # 2 = succeeded, 3 = with errors
+        else { Write-DeployLog "  [$($i + 1)/$m] Failed (result $code): $($u.Title)" WARN }
     }
-    return @{ Found = $todo.Count; Installed = $ok; Reboot = [bool]$res.RebootRequired }
+    return @{ Found = $n; Installed = $ok; Reboot = $reboot }
 }
 
 Register-DeployTask -Id 'WindowsUpdate' -Name 'Windows Patching (until fully updated)' -Category 'Windows Update' -Order 300 `

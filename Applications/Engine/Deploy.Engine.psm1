@@ -233,6 +233,32 @@ function Save-DeployState {
     Move-Item -Path $tmp -Destination $script:StatePath -Force   # atomic-ish replace; avoids torn writes on power loss
 }
 
+function Add-DeploySummary {
+    <#
+        Add lines under a heading in Deploy Summary.txt (written at the end of the run).
+        Kept in state so it survives reboots. Re-adding a section replaces it.
+        Note: the summary file is NOT the log - put sensitive values here only, never in Write-DeployLog.
+    #>
+    param([Parameter(Mandatory)][string]$Section, [Parameter(Mandatory)][AllowEmptyString()][string[]]$Lines, [switch]$Sensitive)
+    $state = Get-DeployState
+    if (-not $state.ContainsKey('Summary') -or -not $state.Summary) { $state.Summary = @{} }
+    $state.Summary[$Section] = @{ Order = $state.Summary.Count; Lines = @($Lines); Sensitive = [bool]$Sensitive }
+    Save-DeployState
+}
+
+function Get-DeploySummaryLines {
+    param([switch]$IncludeSensitive)
+    $state = Get-DeployState
+    $out = @()
+    if ($state -and $state.ContainsKey('Summary') -and $state.Summary) {
+        foreach ($k in ($state.Summary.Keys | Sort-Object { $state.Summary[$_].Order })) {
+            if ($state.Summary[$k].Sensitive -and -not $IncludeSensitive) { $out += ''; $out += "== $k =="; $out += '(omitted here - see Deploy Summary.txt on the Desktop)'; continue }
+            $out += ''; $out += "== $k =="; $out += @($state.Summary[$k].Lines)
+        }
+    }
+    return $out
+}
+
 function Protect-DeploySecret {
     # DPAPI, current-user scope. The resume task runs as the same user, so it can decrypt.
     param([Parameter(Mandatory)][securestring]$Secret)
@@ -530,10 +556,11 @@ function Invoke-DeployNative {
 }
 
 function Write-DeployStatus {
-    <# One self-overwriting console line for progress. Call with -Done to finish the line. #>
-    param([string]$Text = '', [switch]$Done)
+    <# One self-overwriting console line for progress. -Done keeps it and ends the line; -Clear wipes it. #>
+    param([string]$Text = '', [switch]$Done, [switch]$Clear)
     $width = 79
     try { $width = [Math]::Max(40, [Console]::WindowWidth - 1) } catch { }
+    if ($Clear) { Write-Host ("`r" + (' ' * $width) + "`r") -NoNewline; return }
     if ($Text.Length -gt $width) { $Text = $Text.Substring(0, $width) }
     Write-Host ("`r" + $Text.PadRight($width)) -NoNewline -ForegroundColor Gray
     if ($Done) { Write-Host '' }
