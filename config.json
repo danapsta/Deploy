@@ -1,0 +1,41 @@
+{
+  "AdminAccountName": "nwadmin",
+  "TimeZone": "Central Standard Time",
+  "NtpServers": "time.windows.com time.google.com",
+  "DisableUacPrompts": true,
+  "PowerPlanName": "NetWatch",
+  "MaxReboots": 20,
+  "MaxUpdateCycles": 10,
+  "IncludeMicrosoftUpdate": false,
+  "LogDirectory": "C:\\Temp\\DeployLogs",
+  "RemoveSourceAfterRun": true,
+
+  "MenuShowDelay": "100",
+
+  "Downloads": {
+    "ChromeMsi": "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi",
+    "Firefox": "https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=en-US",
+    "TeamsBootstrapper": "https://go.microsoft.com/fwlink/?linkid=2243204&clcid=0x409",
+    "NetExtender": "https://software.sonicwall.com/NetExtender/NetExtender-x64-10.2.331.MSI",
+    "AdobeReaderScrapePage": "https://www.snapfiles.com/downloads/adobereader/dladobereader.html",
+    "BgInfo": "https://download.sysinternals.com/files/BGInfo.zip",
+    "BgInfoLogonBgi": "https://tinyurl.com/yxlxbgun"
+  },
+
+  "RemoveAppxPackages": [
+    "bingfinance", "bingnews", "bingsports", "bingweather",
+    "candycrush", "minecraftuwp", "netflix", "pandora", "twitter",
+    "xboxapp", "xboxgamingoverlay", "xboxidentityprovider", "xboxonesmartglass", "xboxspeechtotextoverlay", "xbox",
+    "SkypeApp", "MicrosoftSolitaireCollection", "ZuneMusic", "ZuneVideo", "OneNote",
+    "microsoftofficehub", "Microsoft.Office.Desktop",
+    "SpotifyMusic", "LinkedInforWindows", "Disney", "Instagram", "Facebook", "PrimeVideo", "AmazonVideo"
+  ],
+
+  "CustomInstallers": [
+    { "Id": "CorrecTekSpark",       "Name": "Correctek Spark",          "Path": "Ulrich\\Correctekspark\\*.msi",      "Arguments": "/passive" },
+    { "Id": "OfficeAtHand",         "Name": "Office at Hand",           "Path": "Ulrich\\Officeathand\\*.msi",        "Arguments": "/passive" },
+    { "Id": "OfficeAtHandMeeting",  "Name": "Office at Hand Meeting",   "Path": "Ulrich\\Officeathandmeeting\\*.msi", "Arguments": "/passive" },
+    { "Id": "TccFasttrack",         "Name": "TCC Fasttrack",            "Path": "Ulrich\\TCCFasttrack\\*.msi",        "Arguments": "/passive" },
+    { "Id": "TeamViewer9",          "Name": "TeamViewer 9",             "Path": "Ulrich\\TeamViewer\\*.exe",          "Arguments": "/S" }
+  ]
+}

@@ -1,3 +1,3 @@
 @ECHO OFF
-Powershell.exe -Command "Start-Process %cd%\Applications\Menu.bat -Verb RunAs
-
+REM Launch the Deploy baseline menu. Deploy.ps1 elevates itself.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Deploy.ps1" %*
