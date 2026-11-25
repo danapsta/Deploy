@@ -13,6 +13,8 @@
   <Add OfficeClientEdition="64" Channel="Current">
     <Product ID="O365ProPlusRetail">
       <Language ID="en-us" />
+      <!-- Teams is installed machine-wide by the separate "Install Teams" task -->
+      <ExcludeApp ID="Teams" />
     </Product>
     <Product ID="VisioProRetail">
       <Language ID="en-us" />

@@ -70,6 +70,8 @@ function Register-DeployTask {
         .PARAMETER Inputs         Names of menu inputs this task needs (see Engine\Menu.ps1).
         .PARAMETER Presets        Preset names (e.g. Workstation, Server) that tick this task.
         .PARAMETER AlwaysRun      Not shown in the menu; always runs (used for cleanup).
+        .PARAMETER Requires       Scriptblock given the OS info (Get-DeployOS). Return $null/nothing if the task
+                                  can run here, or a short reason string if not ("Needs Windows 11").
     #>
     param(
         [Parameter(Mandatory)][string]$Id,
@@ -81,7 +83,8 @@ function Register-DeployTask {
         [switch]$NeedsCleanBoot,
         [string[]]$Inputs = @(),
         [string[]]$Presets = @(),
-        [switch]$AlwaysRun
+        [switch]$AlwaysRun,
+        [scriptblock]$Requires
     )
     if ($script:Tasks | Where-Object { $_.Id -eq $Id }) { throw "Duplicate deploy task id '$Id'." }
     [void]$script:Tasks.Add([pscustomobject]@{
@@ -95,7 +98,17 @@ function Register-DeployTask {
         Inputs         = $Inputs
         Presets        = $Presets
         AlwaysRun      = [bool]$AlwaysRun
+        Requires       = $Requires
     })
+}
+
+function Get-DeployTaskSupport {
+    <# Returns $null if the task can run on this OS, otherwise the reason it cannot. #>
+    param([Parameter(Mandatory)]$Task)
+    if (-not $Task.Requires) { return $null }
+    $reason = & $Task.Requires (Get-DeployOS)
+    if ($reason) { return [string]$reason }
+    return $null
 }
 
 function Get-DeployTask {
@@ -111,6 +124,41 @@ function Import-DeployTasks {
     Get-ChildItem -Path $TaskDirectory -Filter '*.ps1' | Sort-Object Name | ForEach-Object {
         . $_.FullName
     }
+}
+
+#endregion
+
+#region OS detection -----------------------------------------------------------------------
+
+$script:OS = $null
+function Get-DeployOS {
+    <#
+        One place that knows which Windows this is. Tasks use it via -Requires and $ctx.OS.
+        Name: Windows 10 | Windows 11 | Server 2012 R2 | Server 2016 | Server 2019 | Server 2022 | Server 2025
+    #>
+    if ($script:OS) { return $script:OS }
+    $cv = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+    $build = [int]$cv.CurrentBuildNumber
+    $productType = 1
+    try { $productType = [int](Get-CimInstance Win32_OperatingSystem).ProductType } catch { }
+    $isServer = $productType -ne 1        # 2 = domain controller, 3 = member server
+    $name = if (-not $isServer) {
+        if ($build -ge 22000) { 'Windows 11' } elseif ($build -ge 10240) { 'Windows 10' } else { "Windows (build $build)" }
+    } else {
+        if ($build -ge 26100) { 'Server 2025' } elseif ($build -ge 20348) { 'Server 2022' } elseif ($build -ge 17763) { 'Server 2019' }
+        elseif ($build -ge 14393) { 'Server 2016' } elseif ($build -ge 9600) { 'Server 2012 R2' } else { "Server (build $build)" }
+    }
+    $script:OS = [pscustomobject]@{
+        Name       = $name
+        Build      = $build
+        IsServer   = $isServer
+        IsDC       = ($productType -eq 2)
+        Is64Bit    = [Environment]::Is64BitOperatingSystem
+        Edition    = $cv.EditionID
+        Display    = if ($cv.PSObject.Properties['DisplayVersion']) { $cv.DisplayVersion } elseif ($cv.PSObject.Properties['ReleaseId']) { $cv.ReleaseId } else { '' }
+        PSVersion  = $PSVersionTable.PSVersion.Major
+    }
+    return $script:OS
 }
 
 #endregion
@@ -335,7 +383,14 @@ function Invoke-Deployment {
     foreach ($task in (Get-DeployTask)) {
         if (-not $state.Tasks.ContainsKey($task.Id)) { continue }
         $entry = $state.Tasks[$task.Id]
-        if ($entry.Status -in @('Complete', 'Failed')) { continue }
+        if ($entry.Status -in @('Complete', 'Failed', 'Skipped')) { continue }
+
+        $unsupported = Get-DeployTaskSupport -Task $task
+        if ($unsupported) {
+            $entry.Status = 'Skipped'; $entry.Message = $unsupported; Save-DeployState
+            Write-DeployLog "$($task.Name) skipped: $unsupported" WARN
+            continue
+        }
 
         if ($task.NeedsCleanBoot) {
             $pending = Test-PendingReboot
@@ -386,7 +441,7 @@ function Invoke-Deployment {
     foreach ($task in (Get-DeployTask)) {
         if (-not $state.Tasks.ContainsKey($task.Id) -or $task.AlwaysRun) { continue }
         $e = $state.Tasks[$task.Id]
-        $lvl = if ($e.Status -eq 'Complete') { 'OK' } else { 'ERROR' }
+        $lvl = if ($e.Status -eq 'Complete') { 'OK' } elseif ($e.Status -eq 'Skipped') { 'WARN' } else { 'ERROR' }
         $msg = if ($e.Message) { " - $($e.Message)" } else { '' }
         $line = '{0,-40} {1}{2}' -f $task.Name, $e.Status, $msg
         Write-DeployLog $line $lvl
@@ -475,6 +530,23 @@ function Invoke-DeployInstaller {
     if ($code -in @(0, 1641, 3010)) { Write-DeployLog "Installer exit code $code." OK }
     else { Write-DeployLog "Installer exit code $code." WARN }
     return $code
+}
+
+function Expand-DeployZip {
+    <# Expand-Archive needs PowerShell 5; this works on 4.0 (Server 2012 R2) too. Overwrites existing files. #>
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Destination)
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    if (-not (Test-Path $Destination)) { New-Item -ItemType Directory -Path $Destination -Force | Out-Null }
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        foreach ($e in $zip.Entries) {
+            $target = Join-Path $Destination $e.FullName
+            if ($e.FullName.EndsWith('/')) { New-Item -ItemType Directory -Path $target -Force | Out-Null; continue }
+            $dir = Split-Path $target -Parent
+            if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($e, $target, $true)
+        }
+    } finally { $zip.Dispose() }
 }
 
 function Resolve-DeployAsset {

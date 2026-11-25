@@ -8,10 +8,11 @@ function Show-DeployMenu {
     [System.Windows.Forms.Application]::EnableVisualStyles()
 
     $tasks = @(Get-DeployTask | Where-Object { -not $_.AlwaysRun })
+    $os = Get-DeployOS
     $officeConfigs = @(Get-ChildItem -Path (Join-Path $AppsPath 'O365') -Filter 'configuration-*.xml' -ErrorAction SilentlyContinue | ForEach-Object Name)
 
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = 'Deploy - Workstation / Server Baseline'
+    $form.Text = "Deploy - Workstation / Server Baseline  |  Detected: $($os.Name) $($os.Display) (build $($os.Build))"
     $form.StartPosition = 'CenterScreen'
     $form.Size = New-Object System.Drawing.Size(980, 760)
     $form.MinimumSize = New-Object System.Drawing.Size(800, 600)
@@ -34,7 +35,12 @@ function Show-DeployMenu {
         foreach ($t in ($group.Group | Sort-Object Order)) {
             $cb = New-Object System.Windows.Forms.CheckBox
             $cb.Text = $t.Name; $cb.AutoSize = $true; $cb.Tag = $t.Id
-            if ($t.Description) { $tip.SetToolTip($cb, $t.Description) }
+            $why = Get-DeployTaskSupport -Task $t
+            if ($why) {
+                # Not available on this OS: greyed out, reason in the label and tooltip.
+                $cb.Enabled = $false; $cb.Text = "$($t.Name)  (n/a: $why)"
+                $tip.SetToolTip($cb, "Not available on $($os.Name): $why")
+            } elseif ($t.Description) { $tip.SetToolTip($cb, $t.Description) }
             $inner.Controls.Add($cb)
             $checks[$t.Id] = $cb
         }
@@ -66,7 +72,7 @@ function Show-DeployMenu {
         $b.Text = $p; $b.AutoSize = $true; $b.Tag = $p
         $b.Add_Click({
             param($sender, $e)
-            foreach ($t in $tasks) { $checks[$t.Id].Checked = ($sender.Tag -ne 'Clear' -and $t.Presets -contains $sender.Tag) }
+            foreach ($t in $tasks) { $checks[$t.Id].Checked = ($sender.Tag -ne 'Clear' -and $checks[$t.Id].Enabled -and $t.Presets -contains $sender.Tag) }
         }.GetNewClosure())
         $presetRow.Controls.Add($b)
     }
@@ -203,10 +209,9 @@ function Show-DeployMenu {
     }.GetNewClosure()
     foreach ($cb in $checks.Values) { $cb.Add_CheckedChanged($updateFields) }
 
-    # Start with the typical preset for this OS (ProductType 1 = workstation, 2/3 = server).
-    $productType = (Get-CimInstance Win32_OperatingSystem).ProductType
-    $preset = if ($productType -eq 1) { 'Workstation' } else { 'Server' }
-    foreach ($t in $tasks) { $checks[$t.Id].Checked = ($t.Presets -contains $preset) }
+    # Start with the typical preset for this OS; tasks this OS cannot run stay unticked.
+    $preset = if ($os.IsServer) { 'Server' } else { 'Workstation' }
+    foreach ($t in $tasks) { $checks[$t.Id].Checked = ($checks[$t.Id].Enabled -and $t.Presets -contains $preset) }
     & $updateFields
     $form.Add_Shown({ $form.Activate(); if ($tbPw1.Enabled) { $tbPw1.Focus() } })
 

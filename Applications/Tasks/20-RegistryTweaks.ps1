@@ -18,7 +18,7 @@ Register-DeployTask -Id 'TweakVerboseStatus' -Name 'Verbose Status Messages' -Ca
 }
 
 Register-DeployTask -Id 'TweakLongPaths' -Name 'Enable Long Paths' -Category 'Registry Tweaks' -Order 131 `
-    -Presets @('Workstation', 'Server') `
+    -Presets @('Workstation', 'Server') -Requires { param($os) if ($os.Build -lt 14393) { 'Needs Windows 10 1607 / Server 2016 or newer' } } `
     -Description 'Allow Win32 paths longer than 260 characters for applications that opt in.' -Action {
     param($ctx)
     # Note: the value Windows reads is LongPathsEnabled (with an "s"), per Microsoft's MAX_PATH documentation.
@@ -27,7 +27,7 @@ Register-DeployTask -Id 'TweakLongPaths' -Name 'Enable Long Paths' -Category 'Re
 }
 
 Register-DeployTask -Id 'TweakSearchSuggestions' -Name 'Disable Search Web Suggestions' -Category 'Registry Tweaks' -Order 132 `
-    -Presets @('Workstation') `
+    -Presets @('Workstation') -Requires { param($os) if ($os.IsServer -or $os.Build -lt 10240) { 'Windows 10/11 only' } } `
     -Description 'Stop Start/taskbar search from showing Bing web results and suggestions.' -Action {
     param($ctx)
     # Machine-wide policy covers every account, including ones that already exist.
@@ -44,11 +44,9 @@ Register-DeployTask -Id 'TweakSearchSuggestions' -Name 'Disable Search Web Sugge
 }
 
 Register-DeployTask -Id 'TweakClassicContextMenu' -Name 'Classic Context Menu (Win 11)' -Category 'Registry Tweaks' -Order 133 `
-    -Presets @('Workstation') `
+    -Presets @('Workstation') -Requires { param($os) if ($os.Build -lt 22000) { 'Windows 11 / Server 2025 only' } } `
     -Description 'Restore the full Windows 10-style right-click menu on Windows 11 (no "Show more options").' -Action {
     param($ctx)
-    $build = [int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuildNumber
-    if ($build -lt 22000) { Write-DeployLog "Windows build $build is not Windows 11; nothing to do." ; return }
     Invoke-ForEachUserHive {
         param($root)
         # An empty (Default) value on this InprocServer32 key disables the new Win11 menu handler.

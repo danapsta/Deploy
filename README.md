@@ -5,13 +5,13 @@ applications, full Windows patching, domain join. Pick the tasks up front, enter
 and walk away. The machine reboots as often as it needs to, picks up where it left off, and removes
 itself when it is done.
 
-Supported: Windows 10 / 11 and Windows Server 2016+ (Windows PowerShell 5.1, no extra modules).
+Supported: Windows 10 / 11 and Windows Server 2012 R2, 2016, 2019, 2022, 2025 (Windows PowerShell 4.0+, no extra modules).
 
 ## Prerequisites
 
 1. Have the client's local admin password ready.
-2. Have the client's NetExtender details ready (if joining the domain remotely).
-3. Have domain admin credentials ready (if joining the domain). You will be prompted near the end.
+2. Have domain admin credentials ready (if joining the domain). You will be prompted near the end.
+   If the PC is off-site, connect it to the client's VPN before that step.
 
 ## How to use
 
@@ -49,9 +49,9 @@ Useful commands (from an elevated PowerShell in `C:\ProgramData\Deploy`):
 | | Disable Search Web Suggestions | No Bing results in Start/taskbar search |
 | | Classic Context Menu (Win 11) | Full right-click menu without "Show more options" |
 | | Reduce Menu Show Delay | `MenuShowDelay` 200 ms (value in `config.json`) |
-| Applications | Adobe Reader, NetExtender, RMM Agent, Chrome, Teams, Firefox, Office, BGInfo, Remove McAfee | Office uses any `configuration-*.xml` in `Applications\O365` (365 x64/x86, 2019, 2021) |
+| Applications | Adobe Reader, RMM Agent, Chrome, Teams (machine-wide), Firefox, Office, BGInfo, Remove McAfee | Office uses any `configuration-*.xml` in `Applications\O365` (365 x64/x86, 2019, 2021); the 365 configs exclude Teams, which the Teams task installs machine-wide. BGInfo uses `Applications\BgInfo\logon.bgi` for its layout if present |
 | Windows Update | Windows Patching (until fully updated) | Repeats search/install/reboot until no updates remain |
-| Client Software | Entries from `config.json` → `CustomInstallers` | One menu item per entry |
+| Client Software | Entries from `config.json` → `CustomInstallers` (none at the moment) | One menu item per entry |
 | User Settings | Change Default Apps, Change Visual Settings | |
 | Finish | Add to Domain, Set Local Admin Password | Password is always last |
 
@@ -82,6 +82,24 @@ token, and the agent registers itself with it.
 
 The key is only kept in memory, never in `state.json` or the repo. The downloaded agent is deleted with the rest of
 the working folder at the end.
+
+## Windows version support
+
+Deploy detects the OS at start (shown in the menu title). Tasks that do not apply are greyed out with the
+reason, presets never tick them, and the engine skips them if one is selected anyway.
+
+| Task | Win 10 | Win 11 | 2012 R2 | 2016 | 2019 | 2022 | 2025 | Why |
+|---|---|---|---|---|---|---|---|---|
+| Enable Long Paths | ✓ | ✓ | – | ✓ | ✓ | ✓ | ✓ | Added in 1607 / 2016 |
+| Disable Search Web Suggestions | ✓ | ✓ | – | – | – | – | – | Desktop search only |
+| Classic Context Menu | – | ✓ | – | – | – | – | ✓ | Windows 11-style shell only |
+| Adobe Reader, Chrome, Office | ✓ | ✓ | – | ✓ | ✓ | ✓ | ✓ | Vendors dropped 2012 R2 |
+| Teams (machine-wide) | ✓¹ | ✓ | – | – | ✓ | ✓ | ✓ | New Teams requirements |
+| Everything else | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | |
+
+¹ Windows 10 2004 or newer. Firefox installs ESR 115 on 2012 R2, the last version that supports it.
+Built-in app removal only runs on desktop Windows. Add OS rules to a task with `-Requires { param($os) ... }`
+(return a reason string when it can't run); `$ctx.OS` has `Name`, `Build`, `IsServer`, `IsDC`, `PSVersion`.
 
 ## How it works
 

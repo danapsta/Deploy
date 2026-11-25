@@ -133,7 +133,10 @@ try {
     $downloads = Join-Path $workRoot 'Downloads'
     New-Item -ItemType Directory -Path $downloads -Force | Out-Null
 
+    $os = Get-DeployOS
+    Write-DeployLog "OS: $($os.Name) $($os.Display) build $($os.Build), $($os.Edition), PowerShell $($os.PSVersion)"
     $ctx = @{
+        OS           = $os
         Config       = $config
         Inputs       = $state.Inputs
         AppsPath     = $workRoot

@@ -30,7 +30,9 @@ function Get-RmmSites {
             }
             # The raw media type comes back as application/octet-stream, so Content may be a byte[].
             $text = if ($raw.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($raw.Content) } else { [string]$raw.Content }
-            $sites = @($text.TrimStart([char]0xFEFF) | ConvertFrom-Json)
+            # Windows PowerShell 5.1 emits a JSON array as ONE pipeline object; assign first, then enumerate.
+            $parsed = ConvertFrom-Json -InputObject $text.TrimStart([char]0xFEFF)
+            $sites = @(foreach ($item in $parsed) { $item })
             return $sites | ForEach-Object {
                 [pscustomobject]@{ Client = $_.Client; Site = $_.Site; Url = $_.Url; Token = $_.Token; Display = '{0} - {1}' -f $_.Client, $_.Site }
             } | Sort-Object Display
