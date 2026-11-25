@@ -59,7 +59,7 @@ Useful commands (from an elevated PowerShell in `C:\ProgramData\Deploy`):
 | User Experience | Show File Extensions, Show Hidden Items, Skip Edge First Run | W S | Edge homepage: `EdgeHomepage` in config.json |
 | | Clean Taskbar and Start, OneDrive silent sign-in | W | OneDrive folder backup needs the tenant ID (menu field) |
 | | Turn Off Copilot and Recall | off | Undo: `Applications\Tools\Undo-CopilotRecall.ps1` |
-| Applications | Adobe Reader (W), RMM Agent (W S), Chrome (W S) | | Agent per client/site, see below |
+| Applications | Adobe Reader (W), Chrome (W S), RMM Agent (off) | | RMM: agent per client/site, see below |
 | | 7-Zip, Notepad++, VLC, Teams (machine-wide), Firefox, Office, BGInfo (S), Remove McAfee | | Office configs exclude Teams |
 | Windows Update | Windows Patching (until fully updated) | W S | One update at a time with `[3/12] Installing ...` status |
 | Client Software | `CustomInstallers` in config.json | | None at the moment |
@@ -101,6 +101,23 @@ token, and the agent registers itself with it.
 |---|---|---|
 | `Api` | `clientId:clientSecret` of an API client (RMM portal: Integrations > API Access) | Run `Applications\Tools\Test-RmmApi.ps1` once and send the output so the endpoints can be wired up |
 | `PrivateList` | Fine-grained GitHub token, read-only, for the private repo only | `sites.json` in `Rmm.SitesRepo`: `[{"Client":"...","Site":"...","Url":"...","Token":"..."}]`, copied once per site from Devices > Manage > Download Agent |
+
+### Setting up the site list
+
+`sites.json` in the private repo [danapsta/Deploy-Sites](https://github.com/danapsta/Deploy-Sites) has one
+entry per client site. Both values come from the RMM portal: **Devices > Manage > Download Agent >** pick the site.
+
+```json
+[
+  { "Client": "Acme Corp", "Site": "Main Office", "Url": "<Windows OS agent URL>", "Token": "<site token>" }
+]
+```
+
+Edit it on github.com and commit; Deploy reads the latest version every run.
+
+The **RMM site-list key** is a GitHub fine-grained token (GitHub > Settings > Developer settings >
+Fine-grained tokens): *Only select repositories* = `Deploy-Sites`, *Contents* = Read-only, nothing else.
+Store it in ITGlue for techs to paste.
 
 The key is only kept in memory, never in `state.json` or the repo. The downloaded agent is deleted with the rest of
 the working folder at the end.
