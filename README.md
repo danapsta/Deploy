@@ -27,9 +27,13 @@ Supported: Windows 10 / 11 and Windows Server 2012 R2, 2016, 2019, 2022, 2025 (W
    To control reboots yourself, untick **Reboot automatically when needed**: Deploy then asks before each
    reboot, and if you say No it waits. Reboot whenever you like and it carries on after you sign in.
 
-When it finishes, everything it copied is removed (the files on the Desktop, the working folder, the
-resume task, and any temporary auto sign-in). `Deploy Summary.txt` is left on the Desktop, and the full log
-stays in `C:\Temp\DeployLogs`.
+When it finishes, Deploy cleans up after itself:
+- The launch files on the Desktop (`Deploy.bat`, `README.md`, `Applications\`) go to the **Recycle Bin**. To
+  re-run, restore them and double-click `Deploy.bat`; nothing needs re-downloading.
+- The working copy in `C:\ProgramData\Deploy`, the resume task and any temporary auto sign-in are removed
+  permanently. The working copy holds the run's state and installers, and a re-run doesn't need it.
+
+`Deploy Summary.txt` is left on the Desktop, and the full log stays in `C:\Temp\DeployLogs`.
 
 Useful commands (from an elevated PowerShell in `C:\ProgramData\Deploy`):
 

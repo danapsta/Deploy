@@ -45,31 +45,47 @@ Import-DeployTasks -TaskDirectory (Join-Path $here 'Tasks')
 
 $Host.UI.RawUI.WindowTitle = 'Deploy - baseline in progress (do not close)'
 
+function Send-ToRecycleBin {
+    <# Move a file or folder to the current user's Recycle Bin (restorable). Returns $true on success. #>
+    param([Parameter(Mandatory)][string]$Path)
+    Add-Type -AssemblyName Microsoft.VisualBasic
+    $ui = [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs
+    $bin = [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
+    try {
+        if (Test-Path -LiteralPath $Path -PathType Container) { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($Path, $ui, $bin) }
+        else { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($Path, $ui, $bin) }
+        return $true
+    } catch {
+        Write-DeployLog "Could not move $Path to the Recycle Bin: $($_.Exception.Message). Left in place." WARN
+        return $false
+    }
+}
+
 function Remove-DeployFiles {
     param([string]$SourcePath)
     Disable-DeployAutoLogon
     Unregister-DeployResumeTask
-    $targets = @($workRoot)
+
+    # 1) Launch files on the Desktop -> Recycle Bin, so a re-run is just "Restore" + Deploy.bat.
+    #    The Download tool extracts Deploy loose onto the Desktop (Deploy.bat, README.md, Applications\).
+    #    Only exactly those items, and only from a Desktop - never from a USB stick or share.
     if ($config.RemoveSourceAfterRun -and $SourcePath -and (Test-Path $SourcePath) -and $SourcePath -ne $workRoot) {
-        # The Download tool extracts Deploy loose onto the Desktop (Deploy.bat, README.md, Applications\).
-        # Remove exactly those items - and only from a Desktop, never from a USB stick or share.
         $parent   = Split-Path $SourcePath -Parent
         $desktops = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('CommonDesktopDirectory'))
         if ($desktops -contains $parent) {
-            $targets += $SourcePath
-            foreach ($f in 'Deploy.bat', 'README.md', 'Readme.md', '.gitignore', 'Download.bat') {
+            $items = @($SourcePath)
+            foreach ($f in 'Deploy.bat', 'README.md', '.gitignore', 'Download.bat') {
                 $p = Join-Path $parent $f
-                if (Test-Path -LiteralPath $p -PathType Leaf) { $targets += $p }
+                if (Test-Path -LiteralPath $p -PathType Leaf) { $items += $p }
             }
+            $recycled = @($items | Where-Object { Send-ToRecycleBin -Path $_ })
+            if ($recycled.Count) { Write-DeployLog ("Moved to the Recycle Bin (restore to re-run): " + (($recycled | ForEach-Object { Split-Path $_ -Leaf }) -join ', ')) OK }
         } else { Write-DeployLog "Leaving launch files in place: $SourcePath" }
     }
-    # Delete after this process exits (we are running from inside $workRoot).
-    $cmd = 'timeout /t 5 /nobreak >nul'
-    foreach ($t in ($targets | Select-Object -Unique)) {
-        if (Test-Path -LiteralPath $t -PathType Container) { $cmd += ' & rmdir /s /q "{0}"' -f $t }
-        else { $cmd += ' & del /f /q /a "{0}"' -f $t }
-    }
-    Start-Process -FilePath cmd.exe -ArgumentList "/c $cmd" -WindowStyle Hidden
+
+    # 2) Working copy in ProgramData -> deleted permanently: it holds state, downloaded installers and the
+    #    RMM token. Done after this process exits, because we are running from inside it.
+    Start-Process -FilePath cmd.exe -ArgumentList ('/c timeout /t 5 /nobreak >nul & rmdir /s /q "{0}"' -f $workRoot) -WindowStyle Hidden
 }
 
 # --- Status / Abort --------------------------------------------------------------------------
