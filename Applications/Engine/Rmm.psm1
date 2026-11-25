@@ -28,7 +28,9 @@ function Get-RmmSites {
                 if ($code -in 401, 403, 404) { throw "GitHub refused the key (HTTP $code). Check the token and its access to $($rmm.SitesRepo)." }
                 throw "Could not load the site list: $($_.Exception.Message)"
             }
-            $sites = @($raw.Content | ConvertFrom-Json)
+            # The raw media type comes back as application/octet-stream, so Content may be a byte[].
+            $text = if ($raw.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($raw.Content) } else { [string]$raw.Content }
+            $sites = @($text.TrimStart([char]0xFEFF) | ConvertFrom-Json)
             return $sites | ForEach-Object {
                 [pscustomobject]@{ Client = $_.Client; Site = $_.Site; Url = $_.Url; Token = $_.Token; Display = '{0} - {1}' -f $_.Client, $_.Site }
             } | Sort-Object Display

@@ -13,7 +13,7 @@
   "MenuShowDelay": "200",
 
   "Rmm": {
-    "Provider": "Api",
+    "Provider": "PrivateList",
     "BaseUrl": "",
     "SitesRepo": "danapsta/Deploy-Sites",
     "SitesPath": "sites.json"
