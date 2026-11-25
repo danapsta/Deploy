@@ -24,6 +24,8 @@ Supported: Windows 10 / 11 and Windows Server 2012 R2, 2016, 2019, 2022, 2025 (W
    If the account you are signed in with has a password, you are asked for it once, so the PC can
    sign itself in after each reboot. (With no password, Windows signs in automatically anyway.)
 5. Click **Start Script**, confirm, and walk away.
+   To control reboots yourself, untick **Reboot automatically when needed**: Deploy then asks before each
+   reboot, and if you say No it waits. Reboot whenever you like and it carries on after you sign in.
 
 When it finishes, everything it copied is removed (the files on the Desktop, the working folder, the
 resume task, and any temporary auto sign-in). `Deploy Summary.txt` is left on the Desktop, and the full log

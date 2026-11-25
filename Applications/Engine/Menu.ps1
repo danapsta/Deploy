@@ -125,6 +125,12 @@ function Show-DeployMenu {
     }
 
     $note = New-Object System.Windows.Forms.Label
+    $cbReboot = New-Object System.Windows.Forms.CheckBox
+    $cbReboot.Text = 'Reboot automatically when needed'
+    $cbReboot.Checked = $true; $cbReboot.AutoSize = $true; $cbReboot.Margin = New-Object System.Windows.Forms.Padding(0, 16, 0, 0)
+    $tip.SetToolTip($cbReboot, 'Unticked: Deploy asks before every reboot. If you say No, reboot yourself later; it resumes after sign-in.')
+    $side.Controls.Add($cbReboot)
+
     $note.Text = "The PC reboots and resumes on its own until finished.`nA summary is left on the Desktop when it is done."
     $note.AutoSize = $true; $note.ForeColor = [System.Drawing.Color]::DimGray; $note.Margin = New-Object System.Windows.Forms.Padding(0, 16, 0, 0)
     $side.Controls.Add($note)
@@ -197,7 +203,7 @@ function Show-DeployMenu {
             catch { [void][System.Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Deploy - RMM', 'OK', 'Warning'); return }
             finally { $form.Cursor = 'Default' }
         }
-        $script:menuResult = @{ TaskIds = @($selected | ForEach-Object Id); Inputs = $inputs }
+        $script:menuResult = @{ TaskIds = @($selected | ForEach-Object Id); Inputs = $inputs; AutoReboot = [bool]$cbReboot.Checked }
         $form.Close()
     })
 

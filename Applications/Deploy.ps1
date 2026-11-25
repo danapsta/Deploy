@@ -118,7 +118,7 @@ if (-not $Resume) {
     }
     $autoLogon = $choice.Inputs['_AutoLogon']
     $choice.Inputs.Remove('_AutoLogon')   # never written to state
-    New-DeployState -SelectedTaskIds $choice.TaskIds -Inputs $choice.Inputs -SourcePath $here
+    New-DeployState -SelectedTaskIds $choice.TaskIds -Inputs $choice.Inputs -SourcePath $here -AutoReboot $choice.AutoReboot
     Register-DeployResumeTask -ScriptPath (Join-Path $workRoot 'Deploy.ps1')
     if ($autoLogon) { Enable-DeployAutoLogon -Password $autoLogon }
     Write-DeployLog "Deployment started by $env:USERNAME on $env:COMPUTERNAME. Tasks: $($choice.TaskIds -join ', ')" STEP
@@ -156,9 +156,14 @@ try {
     Write-DeployLog ''
     Write-DeployLog "Deployment finished. Summary saved to the Desktop; log kept at $($config.LogDirectory)." STEP
     Remove-DeployFiles -SourcePath $state.SourcePath
-    Write-DeployLog 'Final reboot in 30 seconds. Close this window to cancel the reboot.' STEP
-    Start-Sleep -Seconds 30
-    Restart-Computer -Force
+    if (Test-DeployAutoReboot) {
+        Write-DeployLog 'Final reboot in 30 seconds. Close this window to cancel the reboot.' STEP
+        Start-Sleep -Seconds 30
+        Restart-Computer -Force
+    } else {
+        Write-DeployLog 'Automatic reboot is off. Reboot when convenient to finish applying settings.' STEP
+        Read-Host 'Press Enter to close'
+    }
 } catch {
     Write-DeployLog "Deployment error: $($_.Exception.Message)" ERROR
     Write-DeployLog "State kept in $workRoot. Fix the problem, then run Deploy.ps1 -Resume (or -Abort to cancel)." WARN

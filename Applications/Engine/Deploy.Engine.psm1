@@ -197,7 +197,8 @@ function New-DeployState {
     param(
         [Parameter(Mandatory)][string[]]$SelectedTaskIds,
         [hashtable]$Inputs = @{},
-        [string]$SourcePath
+        [string]$SourcePath,
+        [bool]$AutoReboot = $true
     )
     $tasks = @{}
     foreach ($t in (Get-DeployTask)) {
@@ -211,6 +212,7 @@ function New-DeployState {
         User        = $env:USERNAME
         SourcePath  = $SourcePath
         RebootCount = 0
+        AutoReboot  = $AutoReboot
         Inputs      = $Inputs
         Tasks       = $tasks
     }
@@ -340,10 +342,27 @@ function Invoke-DeployReboot {
     $state = Get-DeployState
     $state.RebootCount = [int]$state.RebootCount + 1
     Save-DeployState
-    Write-DeployLog "Rebooting in $Seconds seconds ($Reason). Reboot #$($state.RebootCount). The deployment resumes automatically after sign-in." STEP
-    Start-Sleep -Seconds $Seconds
-    Restart-Computer -Force
+    if (Test-DeployAutoReboot) {
+        Write-DeployLog "Rebooting in $Seconds seconds ($Reason). Reboot #$($state.RebootCount). The deployment resumes automatically after sign-in." STEP
+        Start-Sleep -Seconds $Seconds
+        Restart-Computer -Force
+        exit 0
+    }
+    # Automatic reboot turned off in the menu: ask, and if declined, stop here. The resume task stays
+    # registered, so the deployment continues by itself after the next manual reboot and sign-in.
+    Write-DeployLog "Reboot needed ($Reason). Automatic reboot is off." STEP
+    Add-Type -AssemblyName System.Windows.Forms
+    $a = [System.Windows.Forms.MessageBox]::Show("A reboot is needed to continue:`n$Reason`n`nReboot now?`n`nNo = reboot yourself later; the deployment resumes automatically after you sign back in.",
+        'Deploy - reboot needed', 'YesNo', 'Question')
+    if ($a -eq 'Yes') { Restart-Computer -Force }
+    else { Write-DeployLog 'Reboot postponed. Deploy continues after the next reboot and sign-in.' WARN }
     exit 0
+}
+
+function Test-DeployAutoReboot {
+    $state = Get-DeployState
+    if ($state -and $state.ContainsKey('AutoReboot') -and $null -ne $state.AutoReboot) { return [bool]$state.AutoReboot }
+    return $true
 }
 
 #endregion
