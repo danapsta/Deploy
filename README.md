@@ -124,5 +124,5 @@ Applications\
   config.json                  defaults: admin account, time zone, NTP, URLs, debloat list, custom installers
   Engine\                       Deploy.Engine.psm1 (state, reboot/resume, helpers), Menu.ps1 (GUI built from tasks)
   Tasks\                        10-Configuration, 20-RegistryTweaks, 30-Applications, 40-WindowsUpdate, 50-UserSettings, 60-Finalize
-  Chrome\ Firefox\ O365\ SetUserFTA\ ...   installers and assets
+  Chrome\ Firefox\ O365\ ...   installers and assets
 ```
