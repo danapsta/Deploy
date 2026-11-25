@@ -1,7 +1,7 @@
 # Default apps and visual settings. Replaces Step.4.bat.
 
 Register-DeployTask -Id 'DefaultApps' -Name 'Change Default Apps' -Category 'User Settings' -Order 500 -Presets @('Workstation') `
-    -Description 'PDF -> Adobe Reader, web -> Chrome. New users via DISM default associations; current user via SetUserFTA.' -Action {
+    -Description 'PDF -> Adobe Reader, web -> Chrome for every new user profile (DISM default associations).' -Action {
     param($ctx)
     # Reader's ProgID depends on the installer flavour (64-bit unified vs classic 32-bit).
     $pdfProgId = $null
@@ -27,7 +27,8 @@ Register-DeployTask -Id 'DefaultApps' -Name 'Change Default Apps' -Category 'Use
     if ($LASTEXITCODE -eq 0) { Write-DeployLog 'Default associations imported for new user profiles.' OK }
     else { Write-DeployLog "DISM default association import returned $LASTEXITCODE." WARN }
 
-    # 2) The deployment account itself (best effort; newer Windows builds may reject SetUserFTA).
+    # 2) Optional: the deployment account itself. SetUserFTA.exe is no longer shipped (antivirus flags it and
+    #    Windows 11's UserChoice protection blocks it); drop it into Applications\SetUserFTA to use it anyway.
     $fta = Join-Path $ctx.AppsPath 'SetUserFTA\SetUserFTA.exe'
     if (Test-Path $fta) {
         foreach ($a in $assoc) { & $fta $a.Ext $a.ProgId | Out-Null }
