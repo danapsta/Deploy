@@ -237,6 +237,56 @@ function Unregister-DeployResumeTask {
     }
 }
 
+function Test-DeployPassword {
+    <# True if $Password is the current account's password. With no argument: is the password blank
+       (in which case Windows signs in automatically and no auto sign-in setup is needed)? #>
+    param([string]$Password = '')
+    if (-not ('DeployNative.Logon' -as [type])) {
+        Add-Type -Namespace DeployNative -Name Logon -MemberDefinition @'
+[DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+public static extern bool LogonUser(string user, string domain, string password, int logonType, int provider, out IntPtr token);
+[DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);
+'@
+    }
+    $token = [IntPtr]::Zero
+    $ok = [DeployNative.Logon]::LogonUser($env:USERNAME, $env:USERDOMAIN, $Password, 2, 0, [ref]$token)
+    if ($ok) { [void][DeployNative.Logon]::CloseHandle($token) }
+    return $ok
+}
+
+function Enable-DeployAutoLogon {
+    <# Temporary automatic sign-in for accounts that have a password. Undone by Disable-DeployAutoLogon. #>
+    param([Parameter(Mandatory)][securestring]$Password)
+    $plain = [Runtime.InteropServices.Marshal]::PtrToStringUni([Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($Password))
+    $wl = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+    Set-RegValue -Path $wl -Name AutoAdminLogon -Value '1' -Type String
+    Set-RegValue -Path $wl -Name DefaultUserName -Value $env:USERNAME -Type String
+    Set-RegValue -Path $wl -Name DefaultDomainName -Value $env:USERDOMAIN -Type String
+    Set-RegValue -Path $wl -Name DefaultPassword -Value $plain -Type String
+    # Windows 11 "Only allow Windows Hello sign-in" blocks auto sign-in; remember and relax it.
+    $pl = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device'
+    $orig = (Get-ItemProperty $pl -Name DevicePasswordLessBuildVersion -ErrorAction SilentlyContinue).DevicePasswordLessBuildVersion
+    $state = Get-DeployState
+    $state.AutoLogon = @{ Enabled = $true; PasswordLess = $orig }
+    Save-DeployState
+    if ($null -ne $orig) { Set-RegValue -Path $pl -Name DevicePasswordLessBuildVersion -Value 0 }
+    Write-DeployLog "Temporary automatic sign-in enabled for $env:USERNAME." OK
+}
+
+function Disable-DeployAutoLogon {
+    $state = Get-DeployState
+    if (-not $state -or -not $state.ContainsKey('AutoLogon') -or -not $state.AutoLogon.Enabled) { return }
+    $wl = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+    Set-RegValue -Path $wl -Name AutoAdminLogon -Value '0' -Type String
+    Remove-ItemProperty -Path $wl -Name DefaultPassword -ErrorAction SilentlyContinue
+    if ($null -ne $state.AutoLogon.PasswordLess) {
+        Set-RegValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device' -Name DevicePasswordLessBuildVersion -Value ([int]$state.AutoLogon.PasswordLess)
+    }
+    $state.AutoLogon.Enabled = $false
+    Save-DeployState
+    Write-DeployLog 'Temporary automatic sign-in removed.' OK
+}
+
 function Invoke-DeployReboot {
     param([string]$Reason = 'Reboot requested', [int]$Seconds = 15)
     $state = Get-DeployState
@@ -332,13 +382,18 @@ function Invoke-Deployment {
 
     Write-DeployLog ''
     Write-DeployLog '=== Summary ===' STEP
+    $lines = @()
     foreach ($task in (Get-DeployTask)) {
-        if (-not $state.Tasks.ContainsKey($task.Id)) { continue }
+        if (-not $state.Tasks.ContainsKey($task.Id) -or $task.AlwaysRun) { continue }
         $e = $state.Tasks[$task.Id]
         $lvl = if ($e.Status -eq 'Complete') { 'OK' } else { 'ERROR' }
         $msg = if ($e.Message) { " - $($e.Message)" } else { '' }
-        Write-DeployLog ('{0,-40} {1}{2}' -f $task.Name, $e.Status, $msg) $lvl
+        $line = '{0,-40} {1}{2}' -f $task.Name, $e.Status, $msg
+        Write-DeployLog $line $lvl
+        $lines += $line
     }
+    $lines += "Reboots: $($state.RebootCount)"
+    return $lines
 }
 
 #endregion

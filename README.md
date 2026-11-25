@@ -9,23 +9,25 @@ Supported: Windows 10 / 11 and Windows Server 2016+ (Windows PowerShell 5.1, no 
 
 ## Prerequisites
 
-1. Put the N-central agent installer in **Applications\Agent** (if installing the agent).
-2. Have the client's local admin password ready.
-3. Have the client's NetExtender details ready (if joining the domain remotely).
-4. Have domain admin credentials ready (if joining the domain). You will be prompted near the end.
-5. **Do not set a password on the account you create during OOBE.** The automatic sign-in after each
-   reboot depends on it. The script sets the local admin password as its very last step.
+1. Have the client's local admin password ready.
+2. Have the client's NetExtender details ready (if joining the domain remotely).
+3. Have domain admin credentials ready (if joining the domain). You will be prompted near the end.
 
 ## How to use
 
-1. Run **dl.bat**. It downloads the latest version to `Desktop\Deploy`.
-2. Run **Desktop\Deploy\Deploy.bat** and accept the UAC prompt.
-3. Click a preset (**Workstation** / **Server**) or tick tasks individually. Hover over a task for details.
-4. Fill in the inputs on the right (only the ones your selected tasks need are checked).
-5. Click **Start Script** and confirm.
+1. Run the [Download](https://github.com/danapsta/download) tool and pick **Download Deployment Script**.
+   It puts `Deploy.bat`, `README.md` and the `Applications` folder on the Desktop.
+2. Double-click **Deploy.bat** and accept the UAC prompt.
+3. The typical tasks for this OS (workstation or server) are already ticked. Adjust if needed, or use
+   the **Workstation** / **Server** / **Clear** buttons. Hover over a task for details.
+4. Fill in the enabled fields on the right. Only fields the ticked tasks need are enabled.
+   If the account you are signed in with has a password, you are asked for it once, so the PC can
+   sign itself in after each reboot. (With no password, Windows signs in automatically anyway.)
+5. Click **Start Script**, confirm, and walk away.
 
-Progress is shown in the console window and logged to `C:\Temp\DeployLogs\deploy.log` (the log is kept
-after cleanup).
+When it finishes, everything it copied is removed (the files on the Desktop, the working folder, the
+resume task, and any temporary auto sign-in). `Deploy Summary.txt` is left on the Desktop, and the full log
+stays in `C:\Temp\DeployLogs`.
 
 Useful commands (from an elevated PowerShell in `C:\ProgramData\Deploy`):
 
@@ -33,7 +35,7 @@ Useful commands (from an elevated PowerShell in `C:\ProgramData\Deploy`):
 |---|---|
 | `.\Deploy.ps1 -Status` | Show each task's status and the reboot count |
 | `.\Deploy.ps1 -Resume` | Continue manually (e.g. after fixing a problem) |
-| `.\Deploy.ps1 -Abort`  | Cancel: remove the resume task and working files |
+| `.\Deploy.ps1 -Abort`  | Cancel: remove the resume task, auto sign-in, and working files |
 
 ## What it can do
 
@@ -46,8 +48,8 @@ Useful commands (from an elevated PowerShell in `C:\ProgramData\Deploy`):
 | | Enable Long Paths | Paths over 260 characters |
 | | Disable Search Web Suggestions | No Bing results in Start/taskbar search |
 | | Classic Context Menu (Win 11) | Full right-click menu without "Show more options" |
-| | Reduce Menu Show Delay | `MenuShowDelay` (value in `config.json`) |
-| Applications | Adobe Reader, NetExtender, Agent, Chrome, Teams, Firefox, Office, BGInfo, Remove McAfee | Office uses any `configuration-*.xml` in `Applications\O365` (365 x64/x86, 2019, 2021) |
+| | Reduce Menu Show Delay | `MenuShowDelay` 200 ms (value in `config.json`) |
+| Applications | Adobe Reader, NetExtender, Chrome, Teams, Firefox, Office, BGInfo, Remove McAfee | Office uses any `configuration-*.xml` in `Applications\O365` (365 x64/x86, 2019, 2021) |
 | Windows Update | Windows Patching (until fully updated) | Repeats search/install/reboot until no updates remain |
 | Client Software | Entries from `config.json` → `CustomInstallers` | One menu item per entry |
 | User Settings | Change Default Apps, Change Visual Settings | |
@@ -56,17 +58,17 @@ Useful commands (from an elevated PowerShell in `C:\ProgramData\Deploy`):
 Per-user settings (registry tweaks, visual settings, default apps) are applied to the deployment
 account **and** to the Default user profile, so the client's users get them when they first sign in.
 
-Typical **Workstation**: Basic Configuration, NTP, RDP, registry tweaks, Adobe Reader, Agent, Chrome,
+Typical **Workstation**: Basic Configuration, NTP, RDP, all registry tweaks, Adobe Reader, Chrome,
 Patching, Default Apps, Visual Settings, Admin Password.
-Typical **Server**: Basic Configuration, NTP, RDP, Verbose Status, Long Paths, Menu Delay, Agent, Chrome,
+Typical **Server**: Basic Configuration, NTP, RDP, Verbose Status, Long Paths, Menu Delay, Chrome,
 Patching, BGInfo, Visual Settings, Add to Domain, Admin Password.
 
 ## How it works
 
 ```
-dl.bat ─▶ Desktop\Deploy ─▶ Deploy.bat ─▶ Deploy.ps1 (elevates, shows menu)
+Download tool ─▶ Desktop ─▶ Deploy.bat ─▶ Applications\Deploy.ps1 (elevates, shows menu)
                                               │
-                    copies itself to C:\ProgramData\Deploy, writes state.json,
+                    copies Applications\ to C:\ProgramData\Deploy, writes state.json,
                     registers scheduled task "Deploy - Resume Baseline"
                                               │
                ┌──────────────── run tasks in Order ◀───────────────┐
@@ -81,6 +83,7 @@ dl.bat ─▶ Desktop\Deploy ─▶ Deploy.bat ─▶ Deploy.ps1 (elevates, show
 * **One resume mechanism.** A scheduled task (at logon of the deployment account, highest privileges)
   replaces the `Admin.N.bat` files in the Startup folder. No UAC prompt, nothing to copy or delete between steps,
   and it does not depend on the Desktop location (OneDrive-redirected desktops broke the old version).
+  The previous batch-file version is kept under the git tag `legacy-batch`.
 * **Reboots happen only when needed.** A task can say "done", "done, reboot before continuing", or
   "reboot and run me again". A task marked `-NeedsCleanBoot` (patching, domain join) never starts
   while Windows has a reboot pending (rename, updates, servicing); the engine reboots first.
@@ -89,7 +92,7 @@ dl.bat ─▶ Desktop\Deploy ─▶ Deploy.bat ─▶ Deploy.ps1 (elevates, show
 
 ## Adding a task
 
-Create or edit a file in `Tasks\` (files load in name order):
+Create or edit a file in `Applications\Tasks\` (files load in name order):
 
 ```powershell
 Register-DeployTask -Id 'MyThing' -Name 'Install My Thing' -Category 'Applications' -Order 415 `
@@ -109,14 +112,17 @@ Register-DeployTask -Id 'MyThing' -Name 'Install My Thing' -Category 'Applicatio
   `TaskData` (a hashtable that survives reboots, for tasks that run more than once).
 * Helpers: `Write-DeployLog`, `Set-RegValue`, `Invoke-ForEachUserHive`, `Get-DeployDownload`,
   `Invoke-DeployInstaller`, `Resolve-DeployAsset`, `Test-PendingReboot`.
-* A simple installer needs no code: add an entry to `CustomInstallers` in `config.json`.
+* A simple installer needs no code: put it in `Applications\<Folder>` and add an entry to
+  `CustomInstallers` in `Applications\config.json`.
 
 ## Layout
 
 ```
-Deploy.bat, Deploy.ps1, dl.bat, config.json
-Engine\   Deploy.Engine.psm1 (state, reboot/resume, helpers), Menu.ps1 (GUI built from tasks)
-Tasks\    10-Configuration, 20-RegistryTweaks, 30-Applications, 40-WindowsUpdate, 50-UserSettings, 60-Finalize
-Applications\  installers and assets (Agent, Chrome, Firefox, O365, SetUserFTA, ...)
-Legacy\   the previous batch-file version, kept for reference; not used
+Deploy.bat                     launcher (the only thing you run)
+Applications\
+  Deploy.ps1                    entry point (menu on first run, -Resume after reboots)
+  config.json                  defaults: admin account, time zone, NTP, URLs, debloat list, custom installers
+  Engine\                       Deploy.Engine.psm1 (state, reboot/resume, helpers), Menu.ps1 (GUI built from tasks)
+  Tasks\                        10-Configuration, 20-RegistryTweaks, 30-Applications, 40-WindowsUpdate, 50-UserSettings, 60-Finalize
+  Chrome\ Firefox\ O365\ SetUserFTA\ ...   installers and assets
 ```

@@ -30,17 +30,6 @@ Register-DeployTask -Id 'NetExtender' -Name 'Install NetExtender' -Category 'App
     if ($code -notin 0, 1641, 3010) { throw "NetExtender install failed ($code)." }
 }
 
-Register-DeployTask -Id 'Agent' -Name 'Install Agent' -Category 'Applications' -Order 220 -Presets @('Workstation', 'Server') `
-    -Description 'Runs every installer placed in Applications\Agent (EXE: /quiet, MSI: /qn).' -Action {
-    param($ctx)
-    $files = @(Get-ChildItem -Path (Join-Path $ctx.AppsPath 'Agent') -Include *.exe, *.msi -Recurse -File -ErrorAction SilentlyContinue)
-    if ($files.Count -eq 0) { throw 'No installer found in Applications\Agent. Download the agent from N-central first.' }
-    foreach ($f in $files) {
-        $installerArgs = if ($f.Extension -eq '.msi') { '/qn /norestart' } else { '/quiet' }
-        [void](Invoke-DeployInstaller -Path $f.FullName -Arguments $installerArgs)
-    }
-}
-
 Register-DeployTask -Id 'Chrome' -Name 'Install Chrome' -Category 'Applications' -Order 230 -Presets @('Workstation', 'Server') `
     -Description 'Google Chrome Enterprise MSI (falls back to Applications\Chrome\Chrome.exe).' -Action {
     param($ctx)

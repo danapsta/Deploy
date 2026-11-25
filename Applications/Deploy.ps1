@@ -46,18 +46,28 @@ $Host.UI.RawUI.WindowTitle = 'Deploy - baseline in progress (do not close)'
 
 function Remove-DeployFiles {
     param([string]$SourcePath)
+    Disable-DeployAutoLogon
     Unregister-DeployResumeTask
     $targets = @($workRoot)
-    if ($config.RemoveSourceAfterRun -and $SourcePath -and (Test-Path $SourcePath)) {
-        # Only remove the launch folder if it sits on a Desktop (where dl.bat puts it), never e.g. a USB or share root.
+    if ($config.RemoveSourceAfterRun -and $SourcePath -and (Test-Path $SourcePath) -and $SourcePath -ne $workRoot) {
+        # The Download tool extracts Deploy loose onto the Desktop (Deploy.bat, README.md, Applications\).
+        # Remove exactly those items - and only from a Desktop, never from a USB stick or share.
+        $parent   = Split-Path $SourcePath -Parent
         $desktops = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('CommonDesktopDirectory'))
-        $parent = Split-Path $SourcePath -Parent
-        if ($desktops -contains $parent -and $SourcePath -ne $workRoot) { $targets += $SourcePath }
-        else { Write-DeployLog "Leaving launch folder in place: $SourcePath" }
+        if ($desktops -contains $parent) {
+            $targets += $SourcePath
+            foreach ($f in 'Deploy.bat', 'README.md', 'Readme.md', '.gitignore', 'Download.bat') {
+                $p = Join-Path $parent $f
+                if (Test-Path -LiteralPath $p -PathType Leaf) { $targets += $p }
+            }
+        } else { Write-DeployLog "Leaving launch files in place: $SourcePath" }
     }
     # Delete after this process exits (we are running from inside $workRoot).
     $cmd = 'timeout /t 5 /nobreak >nul'
-    foreach ($t in $targets) { $cmd += ' & rmdir /s /q "{0}"' -f $t }
+    foreach ($t in ($targets | Select-Object -Unique)) {
+        if (Test-Path -LiteralPath $t -PathType Container) { $cmd += ' & rmdir /s /q "{0}"' -f $t }
+        else { $cmd += ' & del /f /q /a "{0}"' -f $t }
+    }
     Start-Process -FilePath cmd.exe -ArgumentList "/c $cmd" -WindowStyle Hidden
 }
 
@@ -87,17 +97,20 @@ if (-not $Resume) {
 if (-not $Resume) {
     Get-ChildItem -Path $here -Recurse -File | Unblock-File   # avoid "Open File - Security Warning" prompts on installers
 
-    $choice = Show-DeployMenu -Config $config -AppsPath (Join-Path $here 'Applications')
+    $choice = Show-DeployMenu -Config $config -AppsPath $here
     if (-not $choice) { Write-Host 'Cancelled.'; exit }
 
     if ($here -ne $workRoot) {
         Write-Host "Staging files to $workRoot ..."
         New-Item -ItemType Directory -Path $workRoot -Force | Out-Null
-        & robocopy.exe $here $workRoot /E /NFL /NDL /NJH /NJS /NP /XD .git Legacy | Out-Null
+        & robocopy.exe $here $workRoot /E /NFL /NDL /NJH /NJS /NP /XD Downloads | Out-Null
         if ($LASTEXITCODE -ge 8) { throw "Copy to $workRoot failed (robocopy $LASTEXITCODE)." }
     }
+    $autoLogon = $choice.Inputs['_AutoLogon']
+    $choice.Inputs.Remove('_AutoLogon')   # never written to state
     New-DeployState -SelectedTaskIds $choice.TaskIds -Inputs $choice.Inputs -SourcePath $here
     Register-DeployResumeTask -ScriptPath (Join-Path $workRoot 'Deploy.ps1')
+    if ($autoLogon) { Enable-DeployAutoLogon -Password $autoLogon }
     Write-DeployLog "Deployment started by $env:USERNAME on $env:COMPUTERNAME. Tasks: $($choice.TaskIds -join ', ')" STEP
 }
 
@@ -113,16 +126,22 @@ try {
     $ctx = @{
         Config       = $config
         Inputs       = $state.Inputs
-        AppsPath     = Join-Path $workRoot 'Applications'
+        AppsPath     = $workRoot
         DownloadPath = $downloads
         Result       = 'Complete'
         TaskData     = @{}
         TaskRuns     = 0
     }
-    Invoke-Deployment -Context $ctx
+    $summary = Invoke-Deployment -Context $ctx
+
+    # Leave a summary where the tech will see it after the final reboot.
+    $report = @("Deploy summary - $env:COMPUTERNAME - $(Get-Date -Format 'yyyy-MM-dd HH:mm')", '') + $summary +
+              @('', "Full log: $(Join-Path $config.LogDirectory 'deploy.log')")
+    $report | Set-Content -Path (Join-Path $config.LogDirectory 'summary.txt') -Encoding UTF8
+    $report | Set-Content -Path (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Deploy Summary.txt') -Encoding UTF8
 
     Write-DeployLog ''
-    Write-DeployLog "Deployment finished. Log kept at $($config.LogDirectory)." STEP
+    Write-DeployLog "Deployment finished. Summary saved to the Desktop; log kept at $($config.LogDirectory)." STEP
     Remove-DeployFiles -SourcePath $state.SourcePath
     Write-DeployLog 'Final reboot in 30 seconds. Close this window to cancel the reboot.' STEP
     Start-Sleep -Seconds 30

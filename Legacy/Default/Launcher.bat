@@ -1,1 +1,0 @@
-start powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0\Launcher.ps1"

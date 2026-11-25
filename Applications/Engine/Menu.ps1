@@ -65,12 +65,12 @@ function Show-DeployMenu {
         $b = New-Object System.Windows.Forms.Button
         $b.Text = $p; $b.AutoSize = $true; $b.Tag = $p
         $b.Add_Click({
-            param($s, $e)
-            foreach ($t in $tasks) { $checks[$t.Id].Checked = ($s.Tag -ne 'Clear' -and $t.Presets -contains $s.Tag) }
+            param($sender, $e)
+            foreach ($t in $tasks) { $checks[$t.Id].Checked = ($sender.Tag -ne 'Clear' -and $t.Presets -contains $sender.Tag) }
         }.GetNewClosure())
         $presetRow.Controls.Add($b)
     }
-    $lp = New-Object System.Windows.Forms.Label; $lp.Text = 'Presets (typical options):'; $lp.AutoSize = $true
+    $lp = New-Object System.Windows.Forms.Label; $lp.Text = 'Presets (the typical set for this OS is pre-ticked):'; $lp.AutoSize = $true
     $side.Controls.Add($lp); $side.Controls.Add($presetRow)
 
     $tbName    = Add-Field 'New computer name (Basic Configuration)' (New-TextBox)
@@ -87,8 +87,16 @@ function Show-DeployMenu {
     if ($default) { $cbOffice.SelectedItem = $default } elseif ($officeConfigs.Count) { $cbOffice.SelectedIndex = 0 }
     [void](Add-Field 'Office configuration (Applications\O365)' $cbOffice)
 
+    # Auto sign-in: only asked for when this account has a password.
+    $tbSignIn = $null
+    $blankPassword = $true
+    try { $blankPassword = Test-DeployPassword } catch { }
+    if (-not $blankPassword) {
+        $tbSignIn = Add-Field "Password for $env:USERNAME (enables automatic sign-in between reboots)" (New-TextBox -Password)
+    }
+
     $note = New-Object System.Windows.Forms.Label
-    $note.Text = "The PC reboots and resumes on its own until finished.`nDo not set a password on this account until the end -`nthe automatic sign-in depends on it."
+    $note.Text = "The PC reboots and resumes on its own until finished.`nA summary is left on the Desktop when it is done."
     $note.AutoSize = $true; $note.ForeColor = [System.Drawing.Color]::DimGray; $note.Margin = New-Object System.Windows.Forms.Padding(0, 16, 0, 0)
     $side.Controls.Add($note)
 
@@ -132,6 +140,16 @@ function Show-DeployMenu {
             if (-not $cbOffice.SelectedItem) { $errors += 'No Office configuration XML found in Applications\O365.' }
             $inputs.OfficeConfig = [string]$cbOffice.SelectedItem
         }
+        if ($tbSignIn) {
+            if (-not $tbSignIn.Text) {
+                $a = [System.Windows.Forms.MessageBox]::Show("No sign-in password entered. You will have to sign in manually after every reboot.`n`nContinue anyway?", 'Deploy', 'YesNo', 'Warning')
+                if ($a -ne 'Yes') { return }
+            } elseif (-not (Test-DeployPassword -Password $tbSignIn.Text)) {
+                $errors += "The password for $env:USERNAME is not correct."
+            } else {
+                $inputs['_AutoLogon'] = ConvertTo-SecureString $tbSignIn.Text -AsPlainText -Force
+            }
+        }
         if ($errors.Count) { [void][System.Windows.Forms.MessageBox]::Show(($errors -join "`n"), 'Deploy - check inputs', 'OK', 'Warning'); return }
 
         $summary = ($selected | ForEach-Object { " - $($_.Name)" }) -join "`n"
@@ -140,6 +158,21 @@ function Show-DeployMenu {
         $script:menuResult = @{ TaskIds = @($selected | ForEach-Object Id); Inputs = $inputs }
         $form.Close()
     })
+
+    # Only enable the inputs the ticked tasks actually need.
+    $fieldMap = @{ ComputerName = @($tbName); AdminAccount = @($tbAccount); AdminPassword = @($tbPw1, $tbPw2); Domain = @($tbDomain); OfficeConfig = @($cbOffice) }
+    $updateFields = {
+        $needed = @($tasks | Where-Object { $checks[$_.Id].Checked } | ForEach-Object { $_.Inputs })
+        foreach ($k in $fieldMap.Keys) { foreach ($c in $fieldMap[$k]) { $c.Enabled = ($needed -contains $k) } }
+    }.GetNewClosure()
+    foreach ($cb in $checks.Values) { $cb.Add_CheckedChanged($updateFields) }
+
+    # Start with the typical preset for this OS (ProductType 1 = workstation, 2/3 = server).
+    $productType = (Get-CimInstance Win32_OperatingSystem).ProductType
+    $preset = if ($productType -eq 1) { 'Workstation' } else { 'Server' }
+    foreach ($t in $tasks) { $checks[$t.Id].Checked = ($t.Presets -contains $preset) }
+    & $updateFields
+    $form.Add_Shown({ $form.Activate(); if ($tbPw1.Enabled) { $tbPw1.Focus() } })
 
     [void]$form.ShowDialog()
     $form.Dispose()

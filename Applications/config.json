@@ -10,7 +10,7 @@
   "LogDirectory": "C:\\Temp\\DeployLogs",
   "RemoveSourceAfterRun": true,
 
-  "MenuShowDelay": "100",
+  "MenuShowDelay": "200",
 
   "Downloads": {
     "ChromeMsi": "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi",
