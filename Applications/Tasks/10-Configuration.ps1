@@ -2,47 +2,66 @@
 
 # Helpers in task files use the script: scope so task actions can call them later.
 function script:Set-DeployPowerPlan {
+    <#
+        Ensures the custom plan exists (created from High Performance when available), applies the
+        performance settings below on AC and battery, and makes it active. Safe to re-run: an existing
+        plan is updated in place. Settings this hardware does not have are skipped, never fatal.
+    #>
     param([string]$PlanName = 'NetWatch')
     $planGuid   = 'cf938fed-1706-4e8a-9f6f-adb103d2f3ec'
     $legacyGuid = 'e161b883-cc11-4d62-814d-72b1eb63b25d'
-    $base       = '381b4222-f694-41f0-9685-ff5bb260df2e'   # Balanced
+    $guidRx     = [regex]'[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}'
 
-    if ((powercfg /getactivescheme) -match $planGuid) { Write-DeployLog "Power plan '$PlanName' already active."; return }
-
-    if (-not ((powercfg /list) -match $base)) {
-        # Some OEM images remove Balanced; fall back to whatever is active.
-        $base = ([regex]'[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}').Match((powercfg /getactivescheme)).Value
+    if ((Invoke-DeployNative powercfg /query $planGuid).ExitCode -eq 0) {
+        Write-DeployLog "Power plan '$PlanName' exists; updating its settings."
+    } else {
+        [void](Invoke-DeployNative powercfg /delete $legacyGuid)
+        # High Performance, then Balanced, then whatever is active (modern-standby laptops only expose Balanced).
+        $active = $guidRx.Match(((Invoke-DeployNative powercfg /getactivescheme).Output -join ' ')).Value
+        $created = $false
+        foreach ($base in @('8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c', '381b4222-f694-41f0-9685-ff5bb260df2e', $active)) {
+            if (-not $base) { continue }
+            if ((Invoke-DeployNative powercfg /duplicatescheme $base $planGuid).ExitCode -eq 0) { $created = $true; break }
+        }
+        if (-not $created) { Write-DeployLog 'Could not create the power plan; leaving power settings unchanged.' WARN; return }
+        [void](Invoke-DeployNative powercfg /changename $planGuid $PlanName 'Deploy baseline - maximum performance')
+        Write-DeployLog "Created power plan '$PlanName'."
     }
-    powercfg /setactive $base | Out-Null
-    foreach ($g in @($planGuid, $legacyGuid)) { powercfg /delete $g 2>&1 | Out-Null }
-    powercfg /duplicatescheme $base $planGuid | Out-Null
-    if ($LASTEXITCODE -ne 0) { Write-DeployLog 'Could not create power plan.' WARN; return }
-    powercfg /changename $planGuid $PlanName '""' | Out-Null
 
-    # Subgroup, Setting, AC value, DC value, Description
+    # Subgroup, Setting, AC value, Battery value, Description
     $settings = @(
-        @('0012ee47-9041-4b5d-9b77-535fba8b1442', '6738e2c4-e8a5-4a42-b16a-e040e769756e', 0,   0,  'Turn off hard disk: never'),
-        @('19cbb8fa-5279-450e-9fac-8a3d5fedd0c1', '12bbebe6-58d6-4636-95bb-3217ef867c1a', 0,   0,  'Wireless adapter: max performance'),
-        @('238c9fa8-0aad-41ed-83f4-97be242c8f20', '29f6c1db-86da-48c5-9fdb-f2b67b1f44da', 0,   0,  'Sleep after: never'),
-        @('238c9fa8-0aad-41ed-83f4-97be242c8f20', '94ac6d29-73ce-41a6-809f-6363ba21b47e', 0,   0,  'Hybrid sleep: off'),
-        @('238c9fa8-0aad-41ed-83f4-97be242c8f20', '9d7815a6-7ee4-497e-8888-515a05f02364', 0,   0,  'Hibernate after: never'),
-        @('238c9fa8-0aad-41ed-83f4-97be242c8f20', 'bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d', 2,   0,  'Wake timers: important only (AC) / off (DC)'),
-        @('44f3beca-a7c0-460e-9df2-bb8b99e0cba6', '3619c3f2-afb2-4afc-b0e9-e7fef372de36', 2,   2,  'Intel graphics: max performance'),
-        @('4f971e89-eebd-4455-a8de-9e59040e7347', '5ca83367-6e45-459f-a27b-476b1d01c936', 0,   1,  'Lid close: nothing (AC) / sleep (DC)'),
-        @('4f971e89-eebd-4455-a8de-9e59040e7347', '7648efa3-dd9c-4e3e-b566-50f929386280', 1,   1,  'Power button: sleep'),
-        @('4f971e89-eebd-4455-a8de-9e59040e7347', '96996bc0-ad50-47ec-923b-6f41874dd9eb', 1,   1,  'Sleep button: sleep'),
-        @('7516b95f-f776-4464-8c53-06167f40cc99', '3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e', 0,   0,  'Turn off display: never'),
-        @('7516b95f-f776-4464-8c53-06167f40cc99', 'aded5e82-b909-4619-9949-f5d71dac0bcb', 100, 40, 'Brightness: 100% AC / 40% DC')
+        # Performance
+        @('54533251-82be-4824-96c1-47b60b740d00', '893dee8e-2bef-41e0-89c6-b55d0929964c', 100, 100, 'Minimum processor state: 100%'),
+        @('54533251-82be-4824-96c1-47b60b740d00', 'bc5038f7-23e0-4960-96da-33abaf5935ec', 100, 100, 'Maximum processor state: 100%'),
+        @('54533251-82be-4824-96c1-47b60b740d00', '94d3a615-a899-4ac5-ae2b-e4d8f634367f', 1,   1,   'System cooling policy: active'),
+        @('54533251-82be-4824-96c1-47b60b740d00', 'be337238-0d82-4146-a960-4f3749d470c7', 2,   2,   'Processor boost mode: aggressive'),
+        @('501a4d13-42af-4429-9fd1-a8218c268e20', 'ee12f906-d277-404b-b6da-e5fa1a576df5', 0,   0,   'PCI Express link power management: off'),
+        @('2a737441-1930-4402-8d77-b2bebba308a3', '48e6b7a6-50f5-4782-a5d4-53bb8f07e226', 0,   0,   'USB selective suspend: disabled'),
+        @('19cbb8fa-5279-450e-9fac-8a3d5fedd0c1', '12bbebe6-58d6-4636-95bb-3217ef867c1a', 0,   0,   'Wireless adapter: maximum performance'),
+        @('44f3beca-a7c0-460e-9df2-bb8b99e0cba6', '3619c3f2-afb2-4afc-b0e9-e7fef372de36', 2,   2,   'Intel graphics: maximum performance'),
+        @('0012ee47-9041-4b5d-9b77-535fba8b1442', '6738e2c4-e8a5-4a42-b16a-e040e769756e', 0,   0,   'Turn off hard disk: never'),
+        # Stay awake
+        @('238c9fa8-0aad-41ed-83f4-97be242c8f20', '29f6c1db-86da-48c5-9fdb-f2b67b1f44da', 0,   0,   'Sleep after: never'),
+        @('238c9fa8-0aad-41ed-83f4-97be242c8f20', '94ac6d29-73ce-41a6-809f-6363ba21b47e', 0,   0,   'Hybrid sleep: off'),
+        @('238c9fa8-0aad-41ed-83f4-97be242c8f20', '9d7815a6-7ee4-497e-8888-515a05f02364', 0,   0,   'Hibernate after: never'),
+        @('238c9fa8-0aad-41ed-83f4-97be242c8f20', 'bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d', 2,   0,   'Wake timers: important only (AC) / off (battery)'),
+        @('7516b95f-f776-4464-8c53-06167f40cc99', '3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e', 0,   0,   'Turn off display: never'),
+        # Unchanged from the original baseline (behaviour, not performance)
+        @('4f971e89-eebd-4455-a8de-9e59040e7347', '5ca83367-6e45-459f-a27b-476b1d01c936', 0,   1,   'Lid close: nothing (AC) / sleep (battery)'),
+        @('4f971e89-eebd-4455-a8de-9e59040e7347', '7648efa3-dd9c-4e3e-b566-50f929386280', 1,   1,   'Power button: sleep'),
+        @('4f971e89-eebd-4455-a8de-9e59040e7347', '96996bc0-ad50-47ec-923b-6f41874dd9eb', 1,   1,   'Sleep button: sleep'),
+        @('7516b95f-f776-4464-8c53-06167f40cc99', 'aded5e82-b909-4619-9949-f5d71dac0bcb', 100, 40,  'Brightness: 100% (AC) / 40% (battery)')
     )
+    $applied = 0; $skipped = @()
     foreach ($s in $settings) {
-        powercfg /setacvalueindex $planGuid $s[0] $s[1] $s[2] 2>&1 | Out-Null
-        $ac = $LASTEXITCODE
-        powercfg /setdcvalueindex $planGuid $s[0] $s[1] $s[3] 2>&1 | Out-Null
-        if ($ac -eq 0 -and $LASTEXITCODE -eq 0) { Write-DeployLog "  $($s[4])" OK }
-        else { Write-DeployLog "  $($s[4]) (not supported on this hardware)" WARN }
+        $ac = (Invoke-DeployNative powercfg /setacvalueindex $planGuid $s[0] $s[1] $s[2]).ExitCode
+        $dc = (Invoke-DeployNative powercfg /setdcvalueindex $planGuid $s[0] $s[1] $s[3]).ExitCode
+        if ($ac -eq 0 -or $dc -eq 0) { $applied++; Write-DeployLog "  $($s[4])" OK }
+        else { $skipped += $s[4] }
     }
-    powercfg /setactive $planGuid | Out-Null
-    Write-DeployLog "Power plan '$PlanName' active." OK
+    if ($skipped.Count) { Write-DeployLog ("  Not on this hardware (skipped): " + ($skipped -join '; ')) }
+    if ((Invoke-DeployNative powercfg /setactive $planGuid).ExitCode -eq 0) { Write-DeployLog "Power plan '$PlanName' active ($applied settings applied)." OK }
+    else { Write-DeployLog "Power plan '$PlanName' could not be activated." WARN }
 }
 
 function script:Remove-DeployAppx {

@@ -6,11 +6,17 @@ Register-DeployTask -Id 'AdobeReader' -Name 'Install Adobe Reader' -Category 'Ap
     -Requires { param($os) if ($os.Build -lt 14393) { 'Current Reader needs Windows 10 / Server 2016 or newer' } } `
     -Description 'Adobe Acrobat Reader via winget when available, otherwise the download page fallback.' -Action {
     param($ctx)
+    if (Test-DeployAppInstalled '^Adobe Acrobat') { Write-DeployLog 'Adobe Acrobat Reader already installed.'; return }
     $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
     if ($winget) {
-        & $winget.Source install --id Adobe.Acrobat.Reader.64-bit --exact --silent --accept-package-agreements --accept-source-agreements --scope machine
-        if ($LASTEXITCODE -eq 0) { Write-DeployLog 'Adobe Reader installed with winget.' OK; return }
-        Write-DeployLog "winget returned $LASTEXITCODE; trying direct download." WARN
+        # --source winget skips the Microsoft Store source (and its terms/region prompt).
+        # Output is captured (winget's spinners and progress bars don't render in this console) and
+        # replaced by our single status line; readable lines go to the log.
+        $code = Invoke-DeployInstaller -Path $winget.Source -Name 'Adobe Acrobat Reader (winget)' -HideOutput -Arguments (
+            'install --id Adobe.Acrobat.Reader.64-bit --exact --source winget --silent --scope machine ' +
+            '--accept-package-agreements --accept-source-agreements --disable-interactivity')
+        if ($code -eq 0) { return }
+        Write-DeployLog "winget returned $code; trying direct download." WARN
     }
     # Fallback: the page the original script scraped. -UseBasicParsing works on fresh machines
     # where the IE engine has never been initialised (the old script failed there).
@@ -20,7 +26,7 @@ Register-DeployTask -Id 'AdobeReader' -Name 'Install Adobe Reader' -Category 'Ap
     if (-not $link) { throw 'Could not find an Adobe Reader download link.' }
     $link = (New-Object Uri ([Uri]$ctx.Config.Downloads.AdobeReaderScrapePage), [string]$link).AbsoluteUri
     $exe = Get-DeployDownload -Url $link -Destination (Join-Path $ctx.DownloadPath 'AdobeReaderInstaller.exe')
-    [void](Invoke-DeployInstaller -Path $exe -Arguments '/sAll /rs /msi EULA_ACCEPT=YES')
+    [void](Invoke-DeployInstaller -Path $exe -Name 'Adobe Acrobat Reader' -Arguments '/sAll /rs /msi EULA_ACCEPT=YES')
 }
 
 Register-DeployTask -Id 'RmmAgent' -Name 'Install RMM Agent (ConnectWise)' -Category 'Applications' -Order 220 `
@@ -48,9 +54,10 @@ Register-DeployTask -Id 'Chrome' -Name 'Install Chrome' -Category 'Applications'
     -Requires { param($os) if ($os.Build -lt 10240) { 'Chrome no longer supports Server 2012 R2 (last version: 109)' } } `
     -Description 'Google Chrome Enterprise MSI (falls back to Applications\Chrome\Chrome.exe).' -Action {
     param($ctx)
+    if (Test-DeployAppInstalled '^Google Chrome$') { Write-DeployLog 'Google Chrome already installed.'; return }
     try {
         $msi = Get-DeployDownload -Url $ctx.Config.Downloads.ChromeMsi -Destination (Join-Path $ctx.DownloadPath 'Chrome.msi')
-        $code = Invoke-DeployInstaller -Path $msi -Arguments '/qn /norestart'
+        $code = Invoke-DeployInstaller -Path $msi -Arguments '/qn /norestart' -Name 'Google Chrome'
         if ($code -in 0, 1641, 3010) { return }
     } catch { Write-DeployLog "Chrome MSI failed: $($_.Exception.Message)" WARN }
     $exe = Resolve-DeployAsset -RelativePath 'Chrome\*.exe' -Context $ctx
@@ -66,13 +73,14 @@ Register-DeployTask -Id 'Teams' -Name 'Install Teams (machine-wide)' -Category '
     param($ctx)
     $exe = Get-DeployDownload -Url $ctx.Config.Downloads.TeamsBootstrapper -Destination (Join-Path $ctx.DownloadPath 'teamsbootstrapper.exe')
     # -p provisions the MSIX for all users on the machine (not a per-user install).
-    $code = Invoke-DeployInstaller -Path $exe -Arguments '-p'
+    $code = Invoke-DeployInstaller -Path $exe -Arguments '-p' -Name 'Microsoft Teams (machine-wide)' -HideOutput
     if ($code -ne 0) { throw "Teams bootstrapper returned $code." }
 }
 
 Register-DeployTask -Id 'Firefox' -Name 'Install Firefox' -Category 'Applications' -Order 410 `
     -Description 'Latest Firefox (64-bit, silent). Server 2012 R2 gets Firefox ESR 115, the last version that supports it.' -Action {
     param($ctx)
+    if (Test-DeployAppInstalled '^Mozilla Firefox') { Write-DeployLog 'Firefox already installed.'; return }
     $url = if ($ctx.OS.Build -lt 10240) { $ctx.Config.Downloads.FirefoxLegacy } else { $ctx.Config.Downloads.Firefox }
     try {
         $exe = Get-DeployDownload -Url $url -Destination (Join-Path $ctx.DownloadPath 'FirefoxSetup.exe')

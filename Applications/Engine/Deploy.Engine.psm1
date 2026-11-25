@@ -485,51 +485,140 @@ function Invoke-ForEachUserHive {
     $hiveFile = Join-Path $env:SystemDrive 'Users\Default\NTUSER.DAT'
     if (-not (Test-Path $hiveFile)) { Write-DeployLog 'Default user hive not found; applied to current user only.' WARN; return }
     $mount = 'HKU\DeployDefault'
-    & reg.exe load $mount $hiveFile 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { Write-DeployLog 'Could not load Default user hive; applied to current user only.' WARN; return }
+    $r = Invoke-DeployNative reg.exe load $mount $hiveFile
+    if ($r.ExitCode -ne 0) { Write-DeployLog 'Could not load Default user hive; applied to current user only.' WARN; return }
     try {
         & $ScriptBlock 'Registry::HKEY_USERS\DeployDefault'
     } finally {
         [GC]::Collect(); [GC]::WaitForPendingFinalizers()
         Start-Sleep -Milliseconds 500
-        & reg.exe unload $mount 2>&1 | Out-Null
+        $r = Invoke-DeployNative reg.exe unload $mount
+        if ($r.ExitCode -ne 0) { Start-Sleep -Seconds 2; [void](Invoke-DeployNative reg.exe unload $mount) }
     }
 }
 
+function Invoke-DeployNative {
+    <#
+        Run a console program and return @{ ExitCode; Output }. Never throws because the program wrote to
+        stderr (Windows PowerShell turns redirected stderr into errors, which became fatal under -ErrorAction Stop).
+        Usage: Invoke-DeployNative powercfg /setactive $guid
+    #>
+    param([Parameter(Mandatory, Position = 0)][string]$FilePath, [Parameter(ValueFromRemainingArguments)][string[]]$ArgumentList)
+    $ErrorActionPreference = 'Continue'
+    if (-not $ArgumentList) { $ArgumentList = @() }
+    $out = @(& $FilePath @ArgumentList 2>&1 | ForEach-Object { "$_" })
+    return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $out }
+}
+
+function Write-DeployStatus {
+    <# One self-overwriting console line for progress. Call with -Done to finish the line. #>
+    param([string]$Text = '', [switch]$Done)
+    $width = 79
+    try { $width = [Math]::Max(40, [Console]::WindowWidth - 1) } catch { }
+    if ($Text.Length -gt $width) { $Text = $Text.Substring(0, $width) }
+    Write-Host ("`r" + $Text.PadRight($width)) -NoNewline -ForegroundColor Gray
+    if ($Done) { Write-Host '' }
+}
+
+function Format-DeploySize { param([double]$Bytes) if ($Bytes -ge 1GB) { '{0:N1} GB' -f ($Bytes / 1GB) } else { '{0:N1} MB' -f ($Bytes / 1MB) } }
+
 function Get-DeployDownload {
-    <# Download with retries. Returns the local path. #>
+    <# Download with retries and a single-line "name  42%  (12.3 / 29.0 MB)" progress. Returns the local path. #>
     param([Parameter(Mandatory)][string]$Url, [Parameter(Mandatory)][string]$Destination, [int]$Retries = 3)
     $dir = Split-Path $Destination -Parent
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    $name = Split-Path $Destination -Leaf
+    $host_ = ([Uri]$Url).Host
     for ($i = 1; $i -le $Retries; $i++) {
+        $resp = $null; $in = $null; $out = $null
         try {
-            Write-DeployLog "Downloading $Url (attempt $i)..."
-            Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing -ErrorAction Stop
-            if ((Get-Item $Destination).Length -gt 0) { return $Destination }
+            Write-DeployLog "Downloading $name from $host_$(if ($i -gt 1) { " (attempt $i)" })"
+            $req = [Net.HttpWebRequest]::Create($Url)
+            $req.UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Deploy'
+            $req.AllowAutoRedirect = $true; $req.Timeout = 30000; $req.ReadWriteTimeout = 120000
+            $resp = $req.GetResponse()
+            $total = $resp.ContentLength
+            $in = $resp.GetResponseStream()
+            $out = [IO.File]::Create($Destination)
+            $buf = New-Object byte[] 262144
+            $done = 0L; $tick = [Diagnostics.Stopwatch]::StartNew()
+            while (($n = $in.Read($buf, 0, $buf.Length)) -gt 0) {
+                $out.Write($buf, 0, $n); $done += $n
+                if ($tick.ElapsedMilliseconds -ge 400) {
+                    $tick.Restart()
+                    if ($total -gt 0) { Write-DeployStatus ('  {0}  {1,3}%  ({2} / {3})' -f $name, [int](100 * $done / $total), (Format-DeploySize $done), (Format-DeploySize $total)) }
+                    else { Write-DeployStatus ('  {0}  {1}' -f $name, (Format-DeploySize $done)) }
+                }
+            }
+            $out.Close(); $out = $null
+            Write-DeployStatus ('  {0}  100%  ({1})' -f $name, (Format-DeploySize $done)) -Done
+            if ($done -gt 0) { return $Destination }
         } catch {
+            Write-DeployStatus -Done
             Write-DeployLog "Download failed: $($_.Exception.Message)" WARN
             Start-Sleep -Seconds (5 * $i)
+        } finally {
+            if ($out) { $out.Close() }
+            if ($in) { $in.Close() }
+            if ($resp) { $resp.Close() }
         }
     }
     throw "Could not download $Url"
 }
 
 function Invoke-DeployInstaller {
-    <# Run an .exe or .msi and wait. Returns the exit code; 0, 1641 and 3010 count as success. #>
-    param([Parameter(Mandatory)][string]$Path, [string]$Arguments = '')
+    <#
+        Run an .exe or .msi and wait, showing one "Installing <name> ... 1:23" status line.
+        -HideOutput captures the program's console output (e.g. winget's spinners) instead of showing it,
+        and logs only its readable lines. Returns the exit code; 0, 1641 and 3010 count as success.
+    #>
+    param([Parameter(Mandatory)][string]$Path, [string]$Arguments = '', [string]$Name, [switch]$HideOutput)
+    if (-not $Name) { $Name = [IO.Path]::GetFileName($Path) }
+    $sp = @{ PassThru = $true }
     if ($Path -like '*.msi') {
-        $msiArgs = '/i "{0}" {1}' -f $Path, $Arguments
-        Write-DeployLog "msiexec $msiArgs"
-        $p = Start-Process -FilePath "$env:SystemRoot\System32\msiexec.exe" -ArgumentList $msiArgs -Wait -PassThru
+        $sp.FilePath = "$env:SystemRoot\System32\msiexec.exe"
+        $sp.ArgumentList = '/i "{0}" {1}' -f $Path, $Arguments
     } else {
-        Write-DeployLog "`"$Path`" $Arguments"
-        if ($Arguments) { $p = Start-Process -FilePath $Path -ArgumentList $Arguments -Wait -PassThru }
-        else            { $p = Start-Process -FilePath $Path -Wait -PassThru }
+        $sp.FilePath = $Path
+        if ($Arguments) { $sp.ArgumentList = $Arguments }
     }
+    $tmpOut = $null; $tmpErr = $null
+    if ($HideOutput) {
+        $tmpOut = [IO.Path]::GetTempFileName(); $tmpErr = [IO.Path]::GetTempFileName()
+        $sp.NoNewWindow = $true; $sp.RedirectStandardOutput = $tmpOut; $sp.RedirectStandardError = $tmpErr
+    }
+    Write-DeployLog "Installing $Name"
+    $p = Start-Process @sp
+    [void]$p.Handle   # keeps ExitCode available after the process ends
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    while (-not $p.HasExited) {
+        Write-DeployStatus ('  Installing {0} ... {1:m\:ss}' -f $Name, $clock.Elapsed)
+        Start-Sleep -Milliseconds 1000
+    }
+    $p.WaitForExit()
+    Write-DeployStatus ('  Installing {0} ... {1:m\:ss}  done' -f $Name, $clock.Elapsed) -Done
     $code = $p.ExitCode
-    if ($code -in @(0, 1641, 3010)) { Write-DeployLog "Installer exit code $code." OK }
-    else { Write-DeployLog "Installer exit code $code." WARN }
+
+    if ($HideOutput) {
+        # Keep the human-readable lines (drop spinners, progress bars and box-drawing characters).
+        $lines = @(Get-Content $tmpOut, $tmpErr -ErrorAction SilentlyContinue | ForEach-Object {
+            (($_ -split "`r")[-1] -replace '[^\x20-\x7E]', '').Trim()
+        } | Where-Object { $_ -match '[A-Za-z]{3}' -and $_ -notmatch '^[\s\-\\|/]+$' })
+        foreach ($l in $lines) { if ($script:LogFile) { Add-Content -Path $script:LogFile -Value ("    | " + $l) -Encoding UTF8 } }
+        Remove-Item $tmpOut, $tmpErr -Force -ErrorAction SilentlyContinue
+        if ($code -notin @(0, 1641, 3010) -and $lines.Count) { Write-DeployLog ("  " + $lines[-1]) WARN }
+    }
+    if ($code -in @(0, 1641, 3010)) { Write-DeployLog "$Name installed (exit code $code)." OK }
+    else { Write-DeployLog "$Name exit code $code." WARN }
     return $code
+}
+
+function Test-DeployAppInstalled {
+    <# True if an installed program's DisplayName matches the pattern (regex), e.g. '^Google Chrome$'. #>
+    param([Parameter(Mandatory)][string]$Pattern)
+    $roots = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    return [bool](Get-ItemProperty $roots -ErrorAction SilentlyContinue |
+        Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -match $Pattern } | Select-Object -First 1)
 }
 
 function Expand-DeployZip {
