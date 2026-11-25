@@ -44,6 +44,55 @@ Register-DeployTask -Id 'Chrome' -Name 'Install Chrome' -Category 'Applications'
     [void](Invoke-DeployInstaller -Path $exe -Arguments '/silent /install')
 }
 
+# --- Common tools: winget when present (desktops), otherwise the vendor's own latest release. ---
+function script:Install-DeployTool {
+    param($Ctx, [string]$Name, [string]$WingetId, [string]$InstalledPattern, [scriptblock]$ResolveUrl, [string]$FileName, [string]$SilentArgs)
+    if (Test-DeployAppInstalled $InstalledPattern) { Write-DeployLog "$Name already installed."; return }
+    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    if ($winget) {
+        $code = Invoke-DeployInstaller -Path $winget.Source -Name "$Name (winget)" -HideOutput -Arguments (
+            "install --id $WingetId --exact --source winget --silent --scope machine --accept-package-agreements --accept-source-agreements --disable-interactivity")
+        if ($code -eq 0) { return }
+        Write-DeployLog "winget returned $code; downloading from the vendor instead." WARN
+    }
+    $url = & $ResolveUrl
+    if (-not $url) { throw "Could not find the latest $Name download." }
+    $exe = Get-DeployDownload -Url $url -Destination (Join-Path $Ctx.DownloadPath $FileName)
+    $code = Invoke-DeployInstaller -Path $exe -Name $Name -Arguments $SilentArgs
+    if ($code -notin 0, 1641, 3010) { throw "$Name installer returned $code." }
+}
+
+function script:Get-GitHubLatestAsset([string]$Repo, [string]$Pattern) {
+    $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing -Headers @{ 'User-Agent' = 'Deploy' }
+    return ($rel.assets | Where-Object { $_.name -match $Pattern } | Select-Object -First 1).browser_download_url
+}
+
+Register-DeployTask -Id 'App7Zip' -Name 'Install 7-Zip' -Category 'Applications' -Order 240 `
+    -Description '7-Zip (64-bit), latest release.' -Action {
+    param($ctx)
+    Install-DeployTool -Ctx $ctx -Name '7-Zip' -WingetId '7zip.7zip' -InstalledPattern '^7-Zip' -FileName '7zip-x64.exe' -SilentArgs '/S' `
+        -ResolveUrl { Get-GitHubLatestAsset 'ip7z/7zip' '^7z\d+-x64\.exe$' }
+}
+
+Register-DeployTask -Id 'AppNotepadPP' -Name 'Install Notepad++' -Category 'Applications' -Order 241 `
+    -Description 'Notepad++ (64-bit), latest release.' -Action {
+    param($ctx)
+    Install-DeployTool -Ctx $ctx -Name 'Notepad++' -WingetId 'Notepad++.Notepad++' -InstalledPattern '^Notepad\+\+' -FileName 'npp-x64.exe' -SilentArgs '/S' `
+        -ResolveUrl { Get-GitHubLatestAsset 'notepad-plus-plus/notepad-plus-plus' '^npp\.[\d.]+\.Installer\.x64\.exe$' }
+}
+
+Register-DeployTask -Id 'AppVlc' -Name 'Install VLC' -Category 'Applications' -Order 242 `
+    -Description 'VLC media player (64-bit), latest release.' -Action {
+    param($ctx)
+    Install-DeployTool -Ctx $ctx -Name 'VLC' -WingetId 'VideoLAN.VLC' -InstalledPattern '^VLC media player' -FileName 'vlc-win64.exe' -SilentArgs '/L=1033 /S' `
+        -ResolveUrl {
+            $base = 'https://download.videolan.org/pub/videolan/vlc/last/win64/'
+            $page = Invoke-WebRequest -Uri $base -UseBasicParsing
+            $file = ([regex]'vlc-[\d.]+-win64\.exe(?=")').Match($page.Content).Value
+            if ($file) { $base + $file }
+        }
+}
+
 Register-DeployTask -Id 'Teams' -Name 'Install Teams (machine-wide)' -Category 'Applications' -Order 400 `
     -Requires { param($os)
         if ($os.IsServer -and $os.Build -lt 17763) { 'New Teams needs Server 2019 or newer' }

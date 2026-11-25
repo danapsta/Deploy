@@ -11,6 +11,7 @@
   "RemoveSourceAfterRun": true,
 
   "MenuShowDelay": "200",
+  "EdgeHomepage": "",
 
   "Downloads": {
     "ChromeMsi": "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi",

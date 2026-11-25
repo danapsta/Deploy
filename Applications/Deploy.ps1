@@ -103,6 +103,8 @@ if (-not $Resume) {
     if ($here -ne $workRoot) {
         Write-Host "Staging files to $workRoot ..."
         New-Item -ItemType Directory -Path $workRoot -Force | Out-Null
+        # Only Administrators and SYSTEM may read the working folder (state holds secrets during the run).
+        [void](Invoke-DeployNative icacls.exe $workRoot /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F')
         & robocopy.exe $here $workRoot /E /NFL /NDL /NJH /NJS /NP /XD Downloads | Out-Null
         if ($LASTEXITCODE -ge 8) { throw "Copy to $workRoot failed (robocopy $LASTEXITCODE)." }
     }
@@ -138,10 +140,11 @@ try {
     $summary = Invoke-Deployment -Context $ctx
 
     # Leave a summary where the tech will see it after the final reboot.
-    $report = @("Deploy summary - $env:COMPUTERNAME - $(Get-Date -Format 'yyyy-MM-dd HH:mm')", '') + $summary +
-              @('', "Full log: $(Join-Path $config.LogDirectory 'deploy.log')")
-    $report | Set-Content -Path (Join-Path $config.LogDirectory 'summary.txt') -Encoding UTF8
-    $report | Set-Content -Path (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Deploy Summary.txt') -Encoding UTF8
+    $head = @("Deploy summary - $env:COMPUTERNAME - $(Get-Date -Format 'yyyy-MM-dd HH:mm')", '', '== Tasks ==') + $summary
+    $tail = @('', "Full log: $(Join-Path $config.LogDirectory 'deploy.log')")
+    # Desktop copy has everything (incl. BitLocker recovery key) for ITGlue; the copy kept in the log folder does not.
+    ($head + (Get-DeploySummaryLines -IncludeSensitive) + $tail) | Set-Content -Path (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Deploy Summary.txt') -Encoding UTF8
+    ($head + (Get-DeploySummaryLines) + $tail) | Set-Content -Path (Join-Path $config.LogDirectory 'summary.txt') -Encoding UTF8
 
     Write-DeployLog ''
     Write-DeployLog "Deployment finished. Summary saved to the Desktop; log kept at $($config.LogDirectory)." STEP

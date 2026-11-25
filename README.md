@@ -41,29 +41,49 @@ Useful commands (from an elevated PowerShell in `C:\ProgramData\Deploy`):
 
 ## What it can do
 
-| Group | Task | Notes |
-|---|---|---|
-| Configuration | Basic Computer Configuration | Rename PC, disable IE ESC, UAC "never notify" for admins, firewall + Defender on, time zone, NetWatch power plan, remove built-in apps (list in `config.json`) |
-| | NTP Configuration | `time.windows.com`, `time.google.com` |
-| | Enable RDP | Also opens the Remote Desktop firewall rules |
-| Registry Tweaks | Verbose Status Messages | Detailed status text at startup/shutdown/sign-in |
-| | Enable Long Paths | Paths over 260 characters |
-| | Disable Search Web Suggestions | No Bing results in Start/taskbar search |
-| | Classic Context Menu (Win 11) | Full right-click menu without "Show more options" |
-| | Reduce Menu Show Delay | `MenuShowDelay` 200 ms (value in `config.json`) |
-| Applications | Adobe Reader, Chrome, Teams (machine-wide), Firefox, Office, BGInfo, Remove McAfee | Office uses any `configuration-*.xml` in `Applications\O365` (365 x64/x86, 2019, 2021); the 365 configs exclude Teams, which the Teams task installs machine-wide. BGInfo uses `Applications\BgInfo\logon.bgi` for its layout if present |
-| Windows Update | Windows Patching (until fully updated) | Repeats search/install/reboot until no updates remain |
-| Client Software | Entries from `config.json` → `CustomInstallers` (none at the moment) | One menu item per entry |
-| User Settings | Change Default Apps, Change Visual Settings | |
-| Finish | Add to Domain, Set Local Admin Password | Password is always last |
+| Group | Task | Default | Notes |
+|---|---|---|---|
+| Configuration | Basic Computer Configuration | W S | Rename PC, IE ESC off, UAC, firewall + Defender on, time zone, max-performance power plan, debloat (desktops) |
+| | NTP Configuration, Enable RDP | W S | RDP also opens its firewall rules |
+| | Disable Fast Startup | W | |
+| | Allow Ping + Enable WinRM | W S | |
+| Registry Tweaks | Verbose Status, Long Paths, Menu Delay | W S | |
+| | Search Web Suggestions off, Classic Context Menu | W | Classic menu: Windows 11 only |
+| Security | Disable AutoRun / AutoPlay | W S | |
+| | Security Logging | W S | See [Where the logs are](#where-the-logs-are) |
+| | Disable SMBv1, LLMNR, NetBIOS; SMB signing | off | Can affect very old NAS/copiers (scan-to-folder) and networks without DNS |
+| | Disable TLS 1.0/1.1, .NET strong crypto | off | Can affect very old apps/devices |
+| | Defender Hardening | off | Cloud protection, PUA blocking, ASR rules in **audit** mode (log only). No licensing needed |
+| | Require NLA for RDP | off | Usually already on; enforces it |
+| | Enable BitLocker | off | TPM + recovery password; key backed up to AD when joined and written to the Desktop summary |
+| User Experience | Show File Extensions, Show Hidden Items, Skip Edge First Run | W S | Edge homepage: `EdgeHomepage` in config.json |
+| | Clean Taskbar and Start, OneDrive silent sign-in | W | OneDrive folder backup needs the tenant ID (menu field) |
+| | Turn Off Copilot and Recall | off | Undo: `Applications\Tools\Undo-CopilotRecall.ps1` |
+| Applications | Adobe Reader (W), Chrome (W S) | | |
+| | 7-Zip, Notepad++, VLC, Teams (machine-wide), Firefox, Office, BGInfo (S), Remove McAfee | | Office configs exclude Teams |
+| Windows Update | Windows Patching (until fully updated) | W S | One update at a time with `[3/12] Installing ...` status |
+| Client Software | `CustomInstallers` in config.json | | None at the moment |
+| User Settings | Default Apps (W), Visual Settings (W S) | | Default Apps also sets Outlook for mail when Office is installed |
+| Finish | Add to Domain (S), Set Local Admin Password (W S), Inventory to Summary (W S) | | Inventory: hardware, serial, OS, disks, every adapter's IP/MAC/gateway/DNS - for ITGlue |
+
+W = ticked by the Workstation preset, S = by the Server preset, off = opt-in.
 
 Per-user settings (registry tweaks, visual settings, default apps) are applied to the deployment
 account **and** to the Default user profile, so the client's users get them when they first sign in.
 
-Typical **Workstation**: Basic Configuration, NTP, RDP, all registry tweaks, Adobe Reader, Chrome,
-Patching, Default Apps, Visual Settings, Admin Password.
-Typical **Server**: Basic Configuration, NTP, RDP, Verbose Status, Long Paths, Menu Delay, Chrome,
-Patching, BGInfo, Visual Settings, Add to Domain, Admin Password.
+## Where the logs are
+
+| What | Where (Event Viewer) | Event IDs |
+|---|---|---|
+| Sign-ins, failed sign-ins, lockouts | Windows Logs > Security | 4624, 4625, 4740 |
+| Accounts created/changed, group membership | Windows Logs > Security | 4720-4726, 4728, 4732, 4756 |
+| Programs started (with command line) | Windows Logs > Security | 4688 |
+| Audit policy changed | Windows Logs > Security | 4719 |
+| PowerShell code that ran | Applications and Services Logs > Microsoft > Windows > PowerShell > Operational | 4104 |
+| Defender ASR "would have blocked" (if Defender Hardening is on) | Applications and Services Logs > Microsoft > Windows > Windows Defender > Operational | 1121, 1122 |
+
+Logs are local and roll over when full (Security 512 MB, System/Application 128 MB, PowerShell 128 MB).
+Forward them to the RMM/SIEM if they need to be kept longer. Deploy's own log: `C:\Temp\DeployLogs\deploy.log`.
 
 ## Windows version support
 

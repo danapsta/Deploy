@@ -1,7 +1,7 @@
 # Default apps and visual settings. Replaces Step.4.bat.
 
 Register-DeployTask -Id 'DefaultApps' -Name 'Change Default Apps' -Category 'User Settings' -Order 500 -Presets @('Workstation') `
-    -Description 'PDF -> Adobe Reader, web -> Chrome for every new user profile (DISM default associations).' -Action {
+    -Description 'PDF -> Adobe Reader, web -> Chrome, mail -> Outlook (when Office is installed) for every new user profile.' -Action {
     param($ctx)
     # Reader's ProgID depends on the installer flavour (64-bit unified vs classic 32-bit).
     $pdfProgId = $null
@@ -15,6 +15,12 @@ Register-DeployTask -Id 'DefaultApps' -Name 'Change Default Apps' -Category 'Use
     $assoc = @()
     if ($pdfProgId) { $assoc += @{ Ext = '.pdf'; ProgId = $pdfProgId; App = 'Adobe Acrobat Reader' } }
     if ($chrome) { foreach ($e in '.htm', '.html', 'http', 'https') { $assoc += @{ Ext = $e; ProgId = 'ChromeHTML'; App = 'Google Chrome' } } }
+    # Outlook for mail links/files - automatic whenever Office (classic Outlook) is installed.
+    if (Test-Path 'Registry::HKEY_CLASSES_ROOT\Outlook.URL.mailto.15') {
+        $assoc += @{ Ext = 'mailto'; ProgId = 'Outlook.URL.mailto.15'; App = 'Outlook' }
+        if (Test-Path 'Registry::HKEY_CLASSES_ROOT\Outlook.File.eml.15') { $assoc += @{ Ext = '.eml'; ProgId = 'Outlook.File.eml.15'; App = 'Outlook' } }
+        Write-DeployLog 'Outlook found: setting it as the default mail app.'
+    }
     if ($assoc.Count -eq 0) { return }
 
     # 1) Every user who signs in for the first time from now on (the client's users).

@@ -160,3 +160,26 @@ Register-DeployTask -Id 'Rdp' -Name 'Enable RDP' -Category 'Configuration' -Orde
     Enable-NetFirewallRule -Group '@FirewallAPI.dll,-28752' -ErrorAction SilentlyContinue
     Write-DeployLog 'Remote Desktop enabled and firewall rules opened.' OK
 }
+
+Register-DeployTask -Id 'DisableFastStartup' -Name 'Disable Fast Startup' -Category 'Configuration' -Order 140 -Presets @('Workstation') `
+    -Requires { param($os) if ($os.IsServer) { 'Servers do not use Fast Startup' } } `
+    -Description 'Shut down really shuts down: updates, drivers and group policy apply reliably and uptime is accurate.' -Action {
+    param($ctx)
+    Set-RegValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' -Name HiberbootEnabled -Value 0
+    Write-DeployLog 'Fast Startup disabled.' OK
+}
+
+Register-DeployTask -Id 'RemoteMgmt' -Name 'Allow Ping + Enable WinRM' -Category 'Configuration' -Order 141 -Presets @('Workstation', 'Server') `
+    -Description 'Answer ICMP echo (ping) through the firewall and enable PowerShell remoting / WinRM for RMM and techs.' -Action {
+    param($ctx)
+    foreach ($rule in 'FPS-ICMP4-ERQ-In', 'FPS-ICMP6-ERQ-In') {
+        Get-NetFirewallRule -Name $rule -ErrorAction SilentlyContinue | Enable-NetFirewallRule
+    }
+    Write-DeployLog 'Ping (ICMP echo) allowed.' OK
+    try {
+        # SkipNetworkProfileCheck: works while the network is still "Public" (rule then limited to the local subnet).
+        Enable-PSRemoting -Force -SkipNetworkProfileCheck -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null
+        Set-Service -Name WinRM -StartupType Automatic
+        Write-DeployLog 'WinRM / PowerShell remoting enabled.' OK
+    } catch { Write-DeployLog "WinRM not enabled: $($_.Exception.Message)" WARN }
+}

@@ -86,6 +86,7 @@ function Show-DeployMenu {
     $tbPw1     = Add-Field 'Local admin password' (New-TextBox -Password)
     $tbPw2     = Add-Field 'Confirm password' (New-TextBox -Password)
     $tbDomain  = Add-Field 'Domain to join (e.g. corp.example.com)' (New-TextBox)
+    $tbTenant  = Add-Field 'Microsoft 365 tenant ID for OneDrive folder backup (optional)' (New-TextBox)
     $cbOffice  = New-Object System.Windows.Forms.ComboBox
     $cbOffice.DropDownStyle = 'DropDownList'
     foreach ($o in $officeConfigs) { [void]$cbOffice.Items.Add($o) }
@@ -148,6 +149,11 @@ function Show-DeployMenu {
             if ($tbDomain.Text.Trim() -notmatch '^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*$') { $errors += 'Enter a valid domain name.' }
             $inputs.Domain = $tbDomain.Text.Trim()
         }
+        if ($needs -contains 'OneDriveTenant') {
+            $tid = $tbTenant.Text.Trim()
+            if ($tid -and $tid -notmatch '^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') { $errors += 'Tenant ID must be a GUID (Entra admin center > Overview), or leave it blank.' }
+            $inputs.OneDriveTenant = $tid
+        }
         if ($needs -contains 'OfficeConfig') {
             if (-not $cbOffice.SelectedItem) { $errors += 'No Office configuration XML found in Applications\O365.' }
             $inputs.OfficeConfig = [string]$cbOffice.SelectedItem
@@ -172,7 +178,7 @@ function Show-DeployMenu {
     })
 
     # Only enable the inputs the ticked tasks actually need.
-    $fieldMap = @{ ComputerName = @($tbName); AdminAccount = @($tbAccount); AdminPassword = @($tbPw1, $tbPw2); Domain = @($tbDomain); OfficeConfig = @($cbOffice) }
+    $fieldMap = @{ ComputerName = @($tbName); AdminAccount = @($tbAccount); AdminPassword = @($tbPw1, $tbPw2); Domain = @($tbDomain); OneDriveTenant = @($tbTenant); OfficeConfig = @($cbOffice) }
     $updateFields = {
         $needed = @($tasks | Where-Object { $checks[$_.Id].Checked } | ForEach-Object { $_.Inputs })
         foreach ($k in $fieldMap.Keys) { foreach ($c in $fieldMap[$k]) { $c.Enabled = ($needed -contains $k) } }
